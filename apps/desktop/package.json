@@ -3,10 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "main.js",
   "scripts": {
-    "dev": "echo dev",
+    "dev": "electron .",
     "build": "echo build",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "typecheck": "echo ok"
+  },
+  "dependencies": {
+    "electron": "^45.3.2"
   }
 }

@@ -1,0 +1,11 @@
+import { parseBrief } from '../packages/core/src/brief.ts';
+import { generateSpec } from '../packages/core/src/spec.ts';
+import { applyEdit } from '../packages/core/src/editor.ts';
+const brief = parseBrief('تصميم بوست انستجرام لإعلان ملتقى تطوعي للجامعات يوم الجمعة الساعة 5 مساءً، الألوان أخضر وذهبي، بأسلوب شبابي');
+const spec = generateSpec(brief, 'ig_post_4x5', 0);
+const { spec: edited, diffs } = applyEdit(spec, 'كبّر العنوان وغيّر الخلفية للأزرق الداكن');
+console.log('diffs', JSON.stringify(diffs));
+const origHeadline = spec.layers.find(l=>l.name==='HEADLINE')!.textRuns![0].size;
+const newHeadline = edited.layers.find(l=>l.name==='HEADLINE')!.textRuns![0].size;
+console.log('headline size', origHeadline, '->', newHeadline);
+console.log('bg', JSON.stringify(edited.canvas.background));

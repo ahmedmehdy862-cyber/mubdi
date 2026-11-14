@@ -1,0 +1,10 @@
+import { parseBrief } from '../packages/core/src/brief.ts';
+import { generateSpec } from '../packages/core/src/spec.ts';
+import { renderSpecToPng } from '../packages/renderer/src/index.ts';
+import fs from 'node:fs';
+const brief = parseBrief('Design a post for Mubdi Social event on Friday');
+const spec = generateSpec(brief, 'ig_post_4x5', 0);
+spec.layers.find(l=>l.name==='HEADLINE')!.textRuns![0].text = 'Mubdi Social — مبدع';
+const buf = renderSpecToPng(spec);
+fs.writeFileSync('spikes/mixed.png', buf);
+console.log('mixed rendered', buf.length);

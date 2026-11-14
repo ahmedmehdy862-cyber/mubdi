@@ -1,0 +1,13 @@
+import { parseBrief } from '../packages/core/src/brief.ts';
+import { generateSpec } from '../packages/core/src/spec.ts';
+import { specToPsd } from '../packages/psd-engine/src/index.ts';
+import { renderSpecToPng } from '../packages/renderer/src/index.ts';
+import fs from 'node:fs';
+const brief = parseBrief('تصميم بوست انستجرام لإعلان ملتقى تطوعي للجامعات يوم الجمعة الساعة 5 مساءً، الألوان أخضر وذهبي، بأسلوب شبابي');
+const spec = generateSpec(brief, 'ig_story', 0);
+console.log('canvas', spec.canvas.width, spec.canvas.height);
+const buf = renderSpecToPng(spec);
+fs.writeFileSync('spikes/story.png', buf);
+const psd = specToPsd(spec, 'editable');
+fs.writeFileSync('spikes/story.psd', psd);
+console.log('ok', buf.length, psd.length);
