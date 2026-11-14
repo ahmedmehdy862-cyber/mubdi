@@ -1,0 +1,17 @@
+{
+  "name": "spike-psd",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx index.ts"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.1.1",
+    "ag-psd": "^28.5.1",
+    "canvas": "^3.2.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0"
+  }
+}
