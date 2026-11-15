@@ -1,0 +1,13 @@
+import { parseBrief } from '../packages/core/src/brief.ts';
+import { generateSpec } from '../packages/core/src/spec.ts';
+import { specToPsd, importPsd } from '../packages/psd-engine/src/index.ts';
+import fs from 'node:fs';
+const brief = parseBrief('تصميم بوست انستجرام لإعلان ملتقى تطوعي للجامعات يوم الجمعة الساعة 5 مساءً، الألوان أخضر وذهبي، بأسلوب شبابي');
+const spec = generateSpec(brief, 'ig_post_4x5', 0);
+const buf = specToPsd(spec, 'editable');
+fs.writeFileSync('spikes/rt.psd', buf);
+const imp = importPsd(buf);
+console.log('imported layers:', imp.layers.length);
+console.log('groups:', imp.groups);
+console.log('headline text:', imp.layers.find(l=>l.name==='HEADLINE')?.text);
+console.log('size match:', imp.width, imp.height);

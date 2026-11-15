@@ -6,6 +6,10 @@ import jwt from '@fastify/jwt';
 import { z } from 'zod';
 
 const app = Fastify({ logger: true });
+app.setErrorHandler((err, _req, reply) => {
+  if (err?.name === 'ZodError') return reply.code(400).send({ code: 'VALIDATION_ERROR', message: err.message });
+  reply.code(err?.statusCode || 500).send({ code: 'ERROR', message: err?.message });
+});
 
 await app.register(helmet, { contentSecurityPolicy: false });
 await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });

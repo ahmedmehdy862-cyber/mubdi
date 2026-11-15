@@ -173,3 +173,5 @@ export function validatePsd(buf: Buffer, spec: DesignSpec): { ok: boolean; error
 export function listFonts(spec: DesignSpec): string[] {
   return [...new Set(spec.fonts)];
 }
+
+export * from './import';
