@@ -7,6 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow;
 let core, specMod, psdMod, renderMod;
 
+// Portable install: keep user data next to the executable instead of on C:.
+if (app.isPackaged) {
+  app.setPath('userData', path.join(path.dirname(app.getPath('exe')), 'data'));
+}
+
 async function loadModules() {
   core = await import('../../packages/core/dist/index.js');
   specMod = core;
@@ -18,8 +23,9 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

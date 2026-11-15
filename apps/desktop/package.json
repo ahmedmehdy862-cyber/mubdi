@@ -20,7 +20,7 @@
     "appId": "com.mubdi.social",
     "productName": "Mubdi",
     "directories": { "output": "release" },
-    "files": ["main.js", "preload.js", "index.html", "renderer.js", "../../packages/*/dist/**"],
+    "files": ["main.js", "preload.cjs", "index.html", "renderer.js", "icon.png", "../../packages/*/dist/**"],
     "win": { "target": "dir" },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
   }
