@@ -66,3 +66,31 @@ ipcMain.handle('getBrand', async () => {
   const brand = await import('../../packages/brand/dist/index.js');
   return brand.brand;
 });
+
+ipcMain.handle('detectTools', async () => {
+  const fs = await import('node:fs');
+  const psPath = 'C:/Program Files/Adobe/Adobe Photoshop 2025/Photoshop.exe';
+  const aiPath = 'C:/Program Files/Adobe/Adobe Illustrator 2025/Support Files/Contents/Windows/Illustrator.exe';
+  return {
+    photoshop: fs.existsSync(psPath),
+    illustrator: fs.existsSync(aiPath),
+    imagemagick: true,
+  };
+});
+
+ipcMain.handle('importPsd', async (_e, base64) => {
+  const psdMod2 = await import('../../packages/psd-engine/dist/index.js');
+  const buf = Buffer.from(base64, 'base64');
+  return psdMod2.importPsd(buf);
+});
+
+ipcMain.handle('mergeSpec', async (_e, spec, imported) => {
+  const core2 = await import('../../packages/core/dist/index.js');
+  return core2.mergeSpecWithImport(spec, imported);
+});
+
+ipcMain.handle('runCritique', async (_e, spec, brief) => {
+  const core2 = await import('../../packages/core/dist/index.js');
+  const preset = { width: spec.canvas.width, height: spec.canvas.height, safeZones: { top: 0, right: 0, bottom: 0, left: 0 } };
+  return core2.critiqueSpec(spec, brief, preset);
+});

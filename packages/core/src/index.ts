@@ -4,3 +4,4 @@ export * from './critique';
 export * from './editor';
 export * from './captions';
 export * from './pipeline';
+export * from './merge';
