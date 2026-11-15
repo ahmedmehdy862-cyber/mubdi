@@ -6,18 +6,18 @@
   "main": "main.js",
   "scripts": {
     "dev": "electron .",
-    "build": "electron-builder",
+    "build": "echo build",
     "typecheck": "echo ok"
   },
   "dependencies": {
     "electron": "^45.0.0"
   },
-  "devDependencies": {}
+  "devDependencies": {},
   "build": {
     "appId": "com.mubdi.social",
     "productName": "Mubdi",
     "directories": { "output": "release" },
-    "files": ["main.js", "preload.js", "index.html", "renderer.js", "../../packages/*/dist/**"],
+    "files": ["main.js", "preload.js", "index.html", "renderer.js"],
     "win": { "target": "nsis" },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
   }
