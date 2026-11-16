@@ -1,22 +1,31 @@
-import { critiqueSpec, autoFixSpec } from './critique';
-import type { DesignSpec, DesignBrief } from '@mubdi/schemas';
+import type { DesignBrief, DesignSpec } from '@mubdi/schemas';
 import { getPreset } from '@mubdi/schemas';
+import { coach, improveSpec } from '@mubdi/design-knowledge';
+import { resolvePreset } from './critique';
 
 export interface PipelineResult {
   spec: DesignSpec;
   score: number;
   iterations: number;
   issues: string[];
+  reportAr: string;
+  improved: boolean;
 }
 
-export function runCritiqueLoop(spec: DesignSpec, brief: DesignBrief): PipelineResult {
-  let current = spec;
-  let result = critiqueSpec(current, brief, getPreset(current.canvas.platform)!);
-  let iterations = 0;
-  while (result.score < 85 && iterations < 2) {
-    current = autoFixSpec(current, result);
-    iterations++;
-    result = critiqueSpec(current, brief, getPreset(current.canvas.platform)!);
-  }
-  return { spec: current, score: result.score, iterations, issues: result.issues };
+/**
+ * Generate → measure → auto-fix → measure again. Keeps the best spec and
+ * returns the Arabic report so the UI can explain *why* it changed.
+ */
+export function runCritiqueLoop(spec: DesignSpec, brief: DesignBrief, targetScore = 95): PipelineResult {
+  const preset = resolvePreset(spec, getPreset(spec.canvas.platform) ?? undefined);
+  const result = improveSpec(spec, brief, preset, { maxIterations: 3, targetScore });
+  const report = coach(result.after, brief);
+  return {
+    spec: result.spec,
+    score: result.after.score,
+    iterations: result.steps.length,
+    issues: result.after.findings.map((f) => f.messageAr),
+    reportAr: report.text,
+    improved: result.improved,
+  };
 }

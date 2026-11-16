@@ -28,14 +28,18 @@ New-Item -ItemType Directory -Force -Path $appDir, $setupDir | Out-Null
 Copy-Item (Join-Path $root 'apps\desktop\main.js'), (Join-Path $root 'apps\desktop\index.html'), (Join-Path $root 'apps\desktop\renderer.js') $appDir -Force
 Copy-Item (Join-Path $root 'apps\desktop\preload.cjs') $appDir -Force
 
-foreach ($p in 'schemas','core','psd-engine','renderer','brand') {
-  $dest = Join-Path $appDir "packages\$p"
+function Copy-PackageDist([string]$name) {
+  $dest = Join-Path $appDir "packages\$name"
   New-Item -ItemType Directory -Force -Path $dest | Out-Null
-  Copy-Item -Recurse -Force (Join-Path $root "packages\$p\dist") (Join-Path $dest 'dist')
-  $pj = Get-Content (Join-Path $root "packages\$p\package.json") -Raw | ConvertFrom-Json
+  Copy-Item -Recurse -Force (Join-Path $root "packages\$name\dist") (Join-Path $dest 'dist')
+  $pj = Get-Content (Join-Path $root "packages\$name\package.json") -Raw | ConvertFrom-Json
   $pj.main = 'dist/index.js'
   $pj.types = 'dist/index.d.ts'
   $pj | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $dest 'package.json') -Encoding utf8
+}
+
+foreach ($p in 'schemas','design-knowledge','core','psd-engine','renderer','brand') {
+  Copy-PackageDist $p
 }
 
 $appPkg = @{
@@ -60,6 +64,11 @@ Push-Location $appDir
 npm install --omit=dev --no-audit --no-fund
 Pop-Location
 
+Write-Host "[3b/6] Linking @mubdi/design-knowledge into app node_modules"
+$mubdiScope = Join-Path $appDir 'node_modules\@mubdi'
+New-Item -ItemType Directory -Force -Path $mubdiScope | Out-Null
+Copy-Item -Recurse -Force (Join-Path $appDir 'packages\design-knowledge') (Join-Path $mubdiScope 'design-knowledge')
+
 Write-Host "[4/6] Bundling main process (esbuild)"
 $esbuild = Get-ChildItem (Join-Path $root 'node_modules\.pnpm') -Directory |
   Where-Object { $_.Name -like 'esbuild@*' } |
@@ -70,8 +79,9 @@ $esbuildBin = Get-ChildItem (Join-Path $root 'node_modules\.pnpm') -Recurse -Fil
   Where-Object { $_.FullName -like '*@esbuild+win32-x64*' } |
   Select-Object -First 1
 if ($esbuildBin) { $esbuildExe = $esbuildBin.FullName }
+$outFile = Join-Path $appDir 'bundle.mjs'
 & $esbuildExe (Join-Path $root 'apps\desktop\main.js') --bundle --platform=node --format=esm `
-  --external:electron --external:@napi-rs/canvas --outfile=(Join-Path $appDir 'bundle.mjs')
+  --external:electron --external:@napi-rs/canvas "--outfile=$outFile"
 
 Write-Host "[5/6] Fetching Electron runtime $ElectronVersion"
 $zip = Join-Path $setupDir "electron-v$ElectronVersion-win32-x64.zip"

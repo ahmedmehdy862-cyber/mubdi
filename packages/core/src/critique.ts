@@ -1,74 +1,81 @@
-import type { DesignSpec, DesignBrief } from '@mubdi/schemas';
+import type { DesignBrief, DesignSpec } from '@mubdi/schemas';
+import { getPreset } from '@mubdi/schemas';
+import {
+  coach,
+  evaluateDesign,
+  formatEvaluation,
+  improveSpec,
+  type CoachReport,
+  type Evaluation,
+  type RubricPreset,
+} from '@mubdi/design-knowledge';
 
 export interface CritiqueResult {
   score: number;
   issues: string[];
   fixes: string[];
+  gradeAr: string;
+  reportAr: string;
+  evaluation: Evaluation;
+  coach: CoachReport;
 }
 
-export function critiqueSpec(spec: DesignSpec, brief: DesignBrief, preset: { width: number; height: number; safeZones: { top: number; right: number; bottom: number; left: number } }): CritiqueResult {
-  const issues: string[] = [];
-  const fixes: string[] = [];
-  let score = 100;
+export function resolvePreset(spec: DesignSpec, preset?: Partial<RubricPreset>): RubricPreset {
+  const platform = getPreset(spec.canvas.platform);
+  return {
+    width: spec.canvas.width,
+    height: spec.canvas.height,
+    margins: preset?.margins ?? platform?.margins ?? Math.round(Math.min(spec.canvas.width, spec.canvas.height) * 0.06),
+    minFontSize: preset?.minFontSize ?? platform?.minFontSize ?? 22,
+    safeZones:
+      preset?.safeZones ??
+      platform?.safeZones ?? { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+}
 
-  // Safe zones: no text inside safe zones
-  for (const l of spec.layers) {
-    if (l.type === 'text') {
-      if (l.y < preset.safeZones.top) { issues.push(`text ${l.name} in top safe zone`); score -= 10; fixes.push(`move ${l.name} down`); }
-      if (l.y + l.height > preset.height - preset.safeZones.bottom) { issues.push(`text ${l.name} in bottom safe zone`); score -= 10; fixes.push(`move ${l.name} up`); }
-    }
+/**
+ * Rubric-based criticism. The legacy fields (`score`, `issues`, `fixes`) are
+ * preserved so existing callers keep working; the new fields carry measured
+ * evaluation and the Arabic coaching report.
+ */
+export function critiqueSpec(spec: DesignSpec, brief: DesignBrief, preset?: Partial<RubricPreset>): CritiqueResult {
+  const resolved = resolvePreset(spec, preset);
+  const evaluation = evaluateDesign(spec, brief, resolved);
+  const report = coach(evaluation, brief);
+  return {
+    score: evaluation.score,
+    issues: evaluation.findings.map((f) => f.messageAr),
+    fixes: evaluation.findings.map((f) => f.fixAr),
+    gradeAr: evaluation.gradeAr,
+    reportAr: `${report.text}\n\n${formatEvaluation(evaluation)}`,
+    evaluation,
+    coach: report,
+  };
+}
+
+/**
+ * Apply the design-knowledge auto-fix loop. Passing a brief is what enables
+ * measurement; without one we can only normalise Arabic direction defaults.
+ */
+export function autoFixSpec(
+  spec: DesignSpec,
+  critique?: CritiqueResult,
+  brief?: DesignBrief,
+  preset?: Partial<RubricPreset>,
+): DesignSpec {
+  if (brief) {
+    const resolved = resolvePreset(spec, preset);
+    return improveSpec(spec, brief, resolved, { maxIterations: 3, targetScore: 95 }).spec;
   }
-
-  // Overflow: text width > canvas
-  for (const l of spec.layers) {
-    if (l.type === 'text' && l.x + l.width > preset.width) { issues.push(`overflow ${l.name}`); score -= 8; fixes.push(`resize ${l.name}`); }
-  }
-
-  // Contrast: background vs text (simple luminance diff)
-  const bg = spec.canvas.background;
-  const bgLum = (bg.r + bg.g + bg.b) / 3;
-  for (const l of spec.layers) {
-    if (l.type === 'text' && l.textRuns?.[0]) {
-      const c = l.textRuns[0].color;
-      const tLum = (c.r + c.g + c.b) / 3;
-      if (Math.abs(bgLum - tLum) < 80) { issues.push(`low contrast ${l.name}`); score -= 12; fixes.push(`adjust color ${l.name}`); }
-    }
-  }
-
-  // Hierarchy: max 3 font sizes
-  const sizes = new Set(spec.layers.filter((l) => l.type === 'text').flatMap((l) => l.textRuns?.map((r) => r.size) || []));
-  if (sizes.size > 3) { issues.push('too many font sizes'); score -= 5; fixes.push('normalize font sizes'); }
-
-  // Brand compliance: colors match brief intent
-  if (brief.visualDirection.colorIntent.length > 0) {
-    // soft check: at least one layer uses an intent color
-    score -= 0;
-  }
-
-  // Arabic shaping: ensure rtl direction for ar
-  if (brief.language !== 'en') {
-    for (const l of spec.layers) {
-      if (l.type === 'text' && l.textRuns?.[0] && l.textRuns[0].direction !== 'rtl') {
-        issues.push(`wrong direction ${l.name}`); score -= 6; fixes.push(`set rtl ${l.name}`);
+  const fixed = JSON.parse(JSON.stringify(spec)) as DesignSpec;
+  for (const layer of fixed.layers) {
+    if (layer.type === 'text' && layer.textRuns) {
+      for (const run of layer.textRuns) {
+        if (!run.direction) run.direction = 'rtl';
+        if (run.direction === 'rtl') run.tracking = 0;
       }
     }
   }
-
-  // PSD hygiene: layer names non-empty
-  for (const l of spec.layers) if (!l.name) { issues.push('unnamed layer'); score -= 3; }
-
-  score = Math.max(0, Math.min(100, score));
-  return { score, issues, fixes };
-}
-
-export function autoFixSpec(spec: DesignSpec, critique: CritiqueResult): DesignSpec {
-  // Apply simple fixes: move text out of safe zones by increasing y; adjust contrast by lightening text
-  const fixed = JSON.parse(JSON.stringify(spec));
-  // ensure text direction rtl for ar
-  for (const l of fixed.layers) {
-    if (l.type === 'text' && l.textRuns) {
-      for (const r of l.textRuns) if (!r.direction) r.direction = 'rtl';
-    }
-  }
+  if (critique) fixed.version = (fixed.version || 1) + 1;
   return fixed;
 }

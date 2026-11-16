@@ -5,3 +5,13 @@ export * from './editor';
 export * from './captions';
 export * from './pipeline';
 export * from './merge';
+export {
+  coach,
+  evaluateDesign,
+  improveSpec,
+  knowledgeSnapshot,
+  THRESHOLDS,
+  SYSTEM_PROMPT,
+  ART_DIRECTIONS,
+  generateConcepts,
+} from '@mubdi/design-knowledge';

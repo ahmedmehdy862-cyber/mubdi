@@ -13,7 +13,8 @@ export function mergeSpecWithImport(spec: DesignSpec, imported: { layers: Import
     layer.visible = imp.visible;
     // text
     if (layer.type === 'text' && layer.textRuns && imp.text) {
-      layer.textRuns[0].text = imp.text;
+      const run = layer.textRuns[0];
+      if (run) run.text = imp.text;
     }
   }
   out.version = (out.version || 1) + 1;

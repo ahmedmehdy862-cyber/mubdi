@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let mainWindow;
-let core, specMod, psdMod, renderMod;
+let core, specMod, psdMod, renderMod, brandConfig;
 
 // Portable install: keep user data next to the executable instead of on C:.
 if (app.isPackaged) {
@@ -17,6 +17,13 @@ async function loadModules() {
   specMod = core;
   psdMod = await import('../../packages/psd-engine/dist/index.js');
   renderMod = await import('../../packages/renderer/dist/index.js');
+  brandConfig = await import('../../packages/brand/dist/index.js');
+}
+
+/** Brand identity handed to the generator — never a hardcoded name. */
+function brandPayload() {
+  const kit = brandConfig.defaultBrandKit();
+  return { name: brandConfig.brand.studioName, fonts: { arabic: kit.fonts.arabic } };
 }
 
 function createWindow() {
@@ -48,19 +55,43 @@ ipcMain.handle('parseBrief', async (_e, prompt) => {
 });
 
 ipcMain.handle('generateVariants', async (_e, brief, presetId) => {
-  const variants = [];
-  for (let v = 0; v < 3; v++) {
-    const spec = core.generateSpec(brief, presetId, v);
-    const pngBuf = renderMod.renderSpecToPng(spec);
-    const psdBuf = psdMod.specToPsd(spec, 'editable');
-    variants.push({
-      index: v,
-      spec,
+  const generated = core.generateVariantSet(brief, presetId, brandPayload());
+  return generated.map((variant, index) => {
+    const pngBuf = renderMod.renderSpecToPng(variant.spec);
+    const psdBuf = psdMod.specToPsd(variant.spec, 'editable');
+    const critique = core.critiqueSpec(variant.spec, brief);
+    return {
+      index,
+      spec: variant.spec,
+      directionId: variant.directionId,
+      directionNameAr: variant.directionNameAr,
+      directionSummaryAr: variant.directionSummaryAr,
+      directionWhyAr: variant.directionWhyAr,
+      archetype: variant.archetype,
+      archetypeNameAr: variant.archetypeNameAr,
+      rationaleAr: variant.rationaleAr,
+      paletteSummaryAr: variant.paletteSummaryAr,
+      conceptTitleAr: variant.conceptTitleAr,
+      score: critique.score,
+      gradeAr: critique.gradeAr,
+      reportAr: critique.reportAr,
       pngBase64: pngBuf.toString('base64'),
       psdBase64: psdBuf.toString('base64'),
-    });
-  }
-  return variants;
+    };
+  });
+});
+
+ipcMain.handle('improveVariant', async (_e, spec, brief) => {
+  const result = core.autoFixSpec(spec, undefined, brief);
+  const critique = core.critiqueSpec(result, brief);
+  return {
+    spec: result,
+    pngBase64: renderMod.renderSpecToPng(result).toString('base64'),
+    psdBase64: psdMod.specToPsd(result, 'editable').toString('base64'),
+    score: critique.score,
+    gradeAr: critique.gradeAr,
+    reportAr: critique.reportAr,
+  };
 });
 
 ipcMain.handle('exportPsd', async (_e, spec, mode) => {
@@ -69,8 +100,7 @@ ipcMain.handle('exportPsd', async (_e, spec, mode) => {
 });
 
 ipcMain.handle('getBrand', async () => {
-  const brand = await import('../../packages/brand/dist/index.js');
-  return brand.brand;
+  return brandConfig.brand;
 });
 
 ipcMain.handle('detectTools', async () => {
@@ -96,7 +126,5 @@ ipcMain.handle('mergeSpec', async (_e, spec, imported) => {
 });
 
 ipcMain.handle('runCritique', async (_e, spec, brief) => {
-  const core2 = await import('../../packages/core/dist/index.js');
-  const preset = { width: spec.canvas.width, height: spec.canvas.height, safeZones: { top: 0, right: 0, bottom: 0, left: 0 } };
-  return core2.critiqueSpec(spec, brief, preset);
+  return core.critiqueSpec(spec, brief);
 });
