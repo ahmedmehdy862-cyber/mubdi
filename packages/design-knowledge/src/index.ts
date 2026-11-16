@@ -9,3 +9,5 @@ export * from './coach.js';
 export * from './creativity.js';
 export * from './improve.js';
 export * from './knowledge.js';
+export * from './design-language.js';
+export * from './quality.js';
