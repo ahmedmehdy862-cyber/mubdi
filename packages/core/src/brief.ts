@@ -1,4 +1,9 @@
-import { DesignBriefSchema, SeriesPlanSchema, type DesignBrief, type SeriesPlan } from '@mubdi/schemas';
+import {
+  DesignBriefSchema,
+  SeriesPlanSchema,
+  type DesignBrief,
+  type SeriesPlan,
+} from '@mubdi/schemas';
 
 const PLATFORM_KEYWORDS: [string[], string][] = [
   [['انستجرام', 'instagram', 'insta'], 'ig_post_4x5'],
@@ -22,15 +27,25 @@ const INTENT_KEYWORDS: [string[], DesignBrief['intent']][] = [
 ];
 
 const COLOR_MAP: Record<string, string> = {
-  'أخضر': '#1f7a3d', 'green': '#1f7a3d',
-  'ذهبي': '#c9a227', 'gold': '#c9a227', 'golden': '#c9a227',
-  'أزرق': '#1e3a8a', 'blue': '#1e3a8a',
-  'أحمر': '#b91c1c', 'red': '#b91c1c',
-  'أسود': '#0f172a', 'black': '#0f172a',
-  'أبيض': '#f8fafc', 'white': '#f8fafc',
-  'وردي': '#db2777', 'pink': '#db2777',
-  'برتقالي': '#ea580c', 'orange': '#ea580c',
-  'بنفسجي': '#7c3aed', 'purple': '#7c3aed',
+  أخضر: '#1f7a3d',
+  green: '#1f7a3d',
+  ذهبي: '#c9a227',
+  gold: '#c9a227',
+  golden: '#c9a227',
+  أزرق: '#1e3a8a',
+  blue: '#1e3a8a',
+  أحمر: '#b91c1c',
+  red: '#b91c1c',
+  أسود: '#0f172a',
+  black: '#0f172a',
+  أبيض: '#f8fafc',
+  white: '#f8fafc',
+  وردي: '#db2777',
+  pink: '#db2777',
+  برتقالي: '#ea580c',
+  orange: '#ea580c',
+  بنفسجي: '#7c3aed',
+  purple: '#7c3aed',
 };
 
 function detectLanguage(prompt: string): DesignBrief['language'] {
@@ -69,7 +84,7 @@ function extractHeadline(prompt: string): string {
   const quoted = prompt.match(/["«](.+?)["»]/);
   if (quoted && quoted[1]) return quoted[1];
   // event phrase
-  const ev = prompt.match(/(ملتقى[^\n،,\.]+)/);
+  const ev = prompt.match(/(ملتقى[^\n،,.]+)/);
   if (ev && ev[1]) return ev[1].trim();
   // announcement target
   const ann = prompt.match(/إعلان\s+(.+)/);
@@ -122,7 +137,9 @@ export function parseBrief(prompt: string, brandRef?: string): DesignBrief {
       generated,
     },
     tone: kwMatch(prompt, ['شبابي', 'youth']) ? 'youthful' : undefined,
-    audience: kwMatch(prompt, ['جامعات', 'university', 'students']) ? 'university students' : undefined,
+    audience: kwMatch(prompt, ['جامعات', 'university', 'students'])
+      ? 'university students'
+      : undefined,
     occasion: kwMatch(prompt, ['تطوع', 'volunteer']) ? 'volunteering event' : undefined,
     visualDirection: {
       style: kwMatch(prompt, ['شبابي', 'youth']) ? 'youthful, energetic' : 'professional',

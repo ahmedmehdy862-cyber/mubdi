@@ -1,10 +1,12 @@
-import type { DesignSpec } from '@mubdi/schemas';
+import type { Color, DesignSpec } from '@mubdi/schemas';
 
-export interface SpecDiff { op: 'set' | 'scale' | 'recolor'; target: string; value: unknown; }
+export type SpecDiff =
+  | { op: 'set'; target: string; value: unknown }
+  | { op: 'scale'; target: string; value: number }
+  | { op: 'recolor'; target: string; value: Color };
 
 export function parseEditCommand(cmd: string): SpecDiff[] {
   const diffs: SpecDiff[] = [];
-  const low = cmd.toLowerCase();
 
   // "كبّر العنوان" / "make headline bigger"
   if (/كبّر|أكبر|bigger|larger|enlarge/i.test(cmd) && /عنوان|headline|title/i.test(cmd)) {
@@ -26,20 +28,20 @@ export function parseEditCommand(cmd: string): SpecDiff[] {
 export function applyDiff(spec: DesignSpec, diff: SpecDiff): DesignSpec {
   const out = JSON.parse(JSON.stringify(spec)) as DesignSpec;
   for (const layer of out.layers) {
-    if (diff.target === 'background' && layer.type === 'background') {
-      layer.fill = diff.value as any;
-      out.canvas.background = diff.value as any;
+    if (diff.op === 'recolor' && diff.target === 'background' && layer.type === 'background') {
+      layer.fill = diff.value;
+      out.canvas.background = diff.value;
     }
     if (layer.name === diff.target) {
       if (diff.op === 'scale' && layer.type === 'text' && layer.textRuns?.[0]) {
-        layer.textRuns[0].size = Math.round(layer.textRuns[0].size * (diff.value as number));
-        layer.height = Math.round(layer.height * (diff.value as number));
+        layer.textRuns[0].size = Math.round(layer.textRuns[0].size * diff.value);
+        layer.height = Math.round(layer.height * diff.value);
       }
       if (diff.op === 'recolor' && layer.type === 'text' && layer.textRuns?.[0]) {
-        layer.textRuns[0].color = diff.value as any;
+        layer.textRuns[0].color = diff.value;
       }
       if (diff.op === 'recolor' && layer.fill) {
-        layer.fill = diff.value as any;
+        layer.fill = diff.value;
       }
     }
   }

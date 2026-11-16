@@ -20,12 +20,7 @@ export interface Hsl {
 }
 
 export type HarmonyScheme =
-  | 'monochromatic'
-  | 'analogous'
-  | 'complementary'
-  | 'split-complementary'
-  | 'triadic'
-  | 'tetradic';
+  'monochromatic' | 'analogous' | 'complementary' | 'split-complementary' | 'triadic' | 'tetradic';
 
 export interface Palette {
   mode: 'dark' | 'light';
@@ -53,7 +48,13 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.m
 
 export function hexToRgb(hex: string): Rgb {
   const h = hex.replace(/^#/, '');
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const full =
+    h.length === 3
+      ? h
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : h;
   const safe = full.length === 8 ? full.slice(0, 6) : full.padEnd(6, '0');
   return {
     r: parseInt(safe.slice(0, 2), 16) || 0,
@@ -77,7 +78,7 @@ export function rgbToHsl({ r, g, b }: Rgb): Hsl {
   const d = max - min;
   if (d === 0) return { h: 0, s: 0, l };
   const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-  let h = 0;
+  let h: number;
   if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) * 60;
   else if (max === gn) h = ((bn - rn) / d + 2) * 60;
   else h = ((rn - gn) / d + 4) * 60;
@@ -89,16 +90,20 @@ export function hslToRgb({ h, s, l }: Hsl): Rgb {
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
   const m = l - c / 2;
-  let rp = 0;
-  let gp = 0;
-  let bp = 0;
+  let rp: number;
+  let gp: number;
+  let bp: number;
   if (hue < 60) [rp, gp, bp] = [c, x, 0];
   else if (hue < 120) [rp, gp, bp] = [x, c, 0];
   else if (hue < 180) [rp, gp, bp] = [0, c, x];
   else if (hue < 240) [rp, gp, bp] = [0, x, c];
   else if (hue < 300) [rp, gp, bp] = [x, 0, c];
   else [rp, gp, bp] = [c, 0, x];
-  return { r: Math.round((rp + m) * 255), g: Math.round((gp + m) * 255), b: Math.round((bp + m) * 255) };
+  return {
+    r: Math.round((rp + m) * 255),
+    g: Math.round((gp + m) * 255),
+    b: Math.round((bp + m) * 255),
+  };
 }
 
 /** WCAG 2.x relative luminance (0 = black, 1 = white). */
@@ -228,7 +233,9 @@ export function ensureContrast(fgHex: string, bgHex: string, min = 4.5): string 
     } else if (goLighter) lo = mid;
     else hi = mid;
   }
-  const result = rgbToHex(hslToRgb({ ...fg, l: goLighter ? clamp(hi, 0, 1) : clamp(1 - lo, 0, 1) }));
+  const result = rgbToHex(
+    hslToRgb({ ...fg, l: goLighter ? clamp(hi, 0, 1) : clamp(1 - lo, 0, 1) }),
+  );
   // Fallback to pure white/black if the hue cannot reach the ratio.
   if (contrastHex(result, bgHex) < min) {
     return contrastHex('#ffffff', bgHex) >= contrastHex('#000000', bgHex) ? '#ffffff' : '#000000';
@@ -294,7 +301,7 @@ export function buildPalette(opts: PaletteOptions): Palette {
 }
 
 export function hueDistance(a: number, b: number): number {
-  const d = Math.abs(((a - b) % 360 + 360) % 360);
+  const d = Math.abs((((a - b) % 360) + 360) % 360);
   return d > 180 ? 360 - d : d;
 }
 
@@ -312,7 +319,10 @@ export function classifyPalette(hexes: string[]): { scheme: HarmonyScheme; confi
     if (!families.some((f) => hueDistance(f, hue) <= 14)) families.push(hue);
   }
   const base = families[0]!;
-  const offsets = families.slice(1).map((h) => hueDistance(base, h)).sort((a, b) => a - b);
+  const offsets = families
+    .slice(1)
+    .map((h) => hueDistance(base, h))
+    .sort((a, b) => a - b);
   const tolerance = 18;
   const near = (value: number, target: number): boolean => Math.abs(value - target) <= tolerance;
 
@@ -320,9 +330,21 @@ export function classifyPalette(hexes: string[]): { scheme: HarmonyScheme; confi
     { scheme: 'monochromatic', ok: offsets.every((o) => o <= 12), confidence: 1 },
     { scheme: 'analogous', ok: offsets.every((o) => o <= 45), confidence: 0.95 },
     { scheme: 'complementary', ok: offsets.length === 1 && near(offsets[0]!, 180), confidence: 1 },
-    { scheme: 'split-complementary', ok: offsets.length >= 1 && offsets.every((o) => near(o, 150) || near(o, 210)), confidence: 0.9 },
-    { scheme: 'triadic', ok: offsets.length >= 1 && offsets.every((o) => near(o, 120) || near(o, 240)), confidence: 0.9 },
-    { scheme: 'tetradic', ok: offsets.length >= 1 && offsets.every((o) => near(o, 90) || near(o, 180) || near(o, 270)), confidence: 0.85 },
+    {
+      scheme: 'split-complementary',
+      ok: offsets.length >= 1 && offsets.every((o) => near(o, 150) || near(o, 210)),
+      confidence: 0.9,
+    },
+    {
+      scheme: 'triadic',
+      ok: offsets.length >= 1 && offsets.every((o) => near(o, 120) || near(o, 240)),
+      confidence: 0.9,
+    },
+    {
+      scheme: 'tetradic',
+      ok: offsets.length >= 1 && offsets.every((o) => near(o, 90) || near(o, 180) || near(o, 270)),
+      confidence: 0.85,
+    },
   ];
 
   const match = candidates.find((c) => c.ok);
@@ -362,16 +384,86 @@ export interface ColorPsychology {
 
 /** Colour meaning that is safe to ship in Arabic-first markets. */
 export const COLOR_PSYCHOLOGY: ColorPsychology[] = [
-  { hex: '#1f7a3d', nameAr: 'أخضر', nameEn: 'Green', meaningAr: 'نمو، ثقة، استدامة، انتماء', industries: ['تعليم', 'بيئة', 'صحة', 'مجتمع'], menaNote: 'مرتبط إيجابياً بالخير والعطاء؛ مناسب للمبادرات والهويات الوطنية.' },
-  { hex: '#c9a227', nameAr: 'ذهبي', nameEn: 'Gold', meaningAr: 'فخامة، احتفاء، قيمة عالية', industries: ['فعاليات', 'مجوهرات', 'ضيافة'], menaNote: 'مقبول جداً كلكنة فخامة، بشرط عدم تغطيته على مساحات ضخمة.' },
-  { hex: '#1e3a8a', nameAr: 'أزرق', nameEn: 'Blue', meaningAr: 'ثقة، تقنية، هدوء، مؤسسية', industries: ['تقنية', 'مال', 'حكومة'], menaNote: 'لون مؤسسي آمن؛ يفضّل دفؤه بلمسة ذهبية أو تركوازية.' },
-  { hex: '#b91c1c', nameAr: 'أحمر', nameEn: 'Red', meaningAr: 'طاقة، إلحاح، شغف', industries: ['بيع', 'طعام', 'رياضة'], menaNote: 'استخدمه بجرعات صغيرة (CTA/شارة) لأنه قد يُقرأ كتحذير.' },
-  { hex: '#7c3aed', nameAr: 'بنفسجي', nameEn: 'Purple', meaningAr: 'إبداع، خيال، تميّز', industries: ['إبداع', 'تعليم', 'ترفيه'], menaNote: 'مناسب للجمهور الشاب؛ يوازنه الأبيض الدافئ.' },
-  { hex: '#ea580c', nameAr: 'برتقالي', nameEn: 'Orange', meaningAr: 'حيوية، ودّ، دعوة للفعل', industries: ['تجارة', 'أغذية', 'مبادرات'], menaNote: 'قوي للـ CTA على خلفيات داكنة، وأقل نجاحاً على الأبيض البارد.' },
-  { hex: '#0f766e', nameAr: 'تركوازي', nameEn: 'Teal', meaningAr: 'تجدّد، صفاء، حداثة', industries: ['صحة', 'سياحة', 'تعليم'], menaNote: 'يرتبط بالماء والضيافة الخليجية؛ يعمل بامتياز مع الرملي.' },
-  { hex: '#0f172a', nameAr: 'كحلي', nameEn: 'Navy', meaningAr: 'رصانة، احترافية، عمق', industries: ['مؤسسي', 'تقنية', 'تعليم'], menaNote: 'الأساس الأكثر أماناً للتصاميم العربية الداكنة؛ يوفر تبايناً عالياً.' },
-  { hex: '#f8fafc', nameAr: 'أبيض دافئ', nameEn: 'Off-white', meaningAr: 'نقاء، مساحة تنفّس، وضوح', industries: ['جميع القطاعات'], menaNote: 'الأبيض النقي قد يبدو بارداً؛ الأبيض المائل للكريمي أدفأ للسياق العربي.' },
-  { hex: '#a16207', nameAr: 'رملي', nameEn: 'Sand', meaningAr: 'دفء، تراث، أرضية', industries: ['ثقافة', 'ضيافة', 'عقار'], menaNote: 'حجر أساس لهوية عربية معاصرة؛ ينسجم مع الأخضر والكحلي.' },
+  {
+    hex: '#1f7a3d',
+    nameAr: 'أخضر',
+    nameEn: 'Green',
+    meaningAr: 'نمو، ثقة، استدامة، انتماء',
+    industries: ['تعليم', 'بيئة', 'صحة', 'مجتمع'],
+    menaNote: 'مرتبط إيجابياً بالخير والعطاء؛ مناسب للمبادرات والهويات الوطنية.',
+  },
+  {
+    hex: '#c9a227',
+    nameAr: 'ذهبي',
+    nameEn: 'Gold',
+    meaningAr: 'فخامة، احتفاء، قيمة عالية',
+    industries: ['فعاليات', 'مجوهرات', 'ضيافة'],
+    menaNote: 'مقبول جداً كلكنة فخامة، بشرط عدم تغطيته على مساحات ضخمة.',
+  },
+  {
+    hex: '#1e3a8a',
+    nameAr: 'أزرق',
+    nameEn: 'Blue',
+    meaningAr: 'ثقة، تقنية، هدوء، مؤسسية',
+    industries: ['تقنية', 'مال', 'حكومة'],
+    menaNote: 'لون مؤسسي آمن؛ يفضّل دفؤه بلمسة ذهبية أو تركوازية.',
+  },
+  {
+    hex: '#b91c1c',
+    nameAr: 'أحمر',
+    nameEn: 'Red',
+    meaningAr: 'طاقة، إلحاح، شغف',
+    industries: ['بيع', 'طعام', 'رياضة'],
+    menaNote: 'استخدمه بجرعات صغيرة (CTA/شارة) لأنه قد يُقرأ كتحذير.',
+  },
+  {
+    hex: '#7c3aed',
+    nameAr: 'بنفسجي',
+    nameEn: 'Purple',
+    meaningAr: 'إبداع، خيال، تميّز',
+    industries: ['إبداع', 'تعليم', 'ترفيه'],
+    menaNote: 'مناسب للجمهور الشاب؛ يوازنه الأبيض الدافئ.',
+  },
+  {
+    hex: '#ea580c',
+    nameAr: 'برتقالي',
+    nameEn: 'Orange',
+    meaningAr: 'حيوية، ودّ، دعوة للفعل',
+    industries: ['تجارة', 'أغذية', 'مبادرات'],
+    menaNote: 'قوي للـ CTA على خلفيات داكنة، وأقل نجاحاً على الأبيض البارد.',
+  },
+  {
+    hex: '#0f766e',
+    nameAr: 'تركوازي',
+    nameEn: 'Teal',
+    meaningAr: 'تجدّد، صفاء، حداثة',
+    industries: ['صحة', 'سياحة', 'تعليم'],
+    menaNote: 'يرتبط بالماء والضيافة الخليجية؛ يعمل بامتياز مع الرملي.',
+  },
+  {
+    hex: '#0f172a',
+    nameAr: 'كحلي',
+    nameEn: 'Navy',
+    meaningAr: 'رصانة، احترافية، عمق',
+    industries: ['مؤسسي', 'تقنية', 'تعليم'],
+    menaNote: 'الأساس الأكثر أماناً للتصاميم العربية الداكنة؛ يوفر تبايناً عالياً.',
+  },
+  {
+    hex: '#f8fafc',
+    nameAr: 'أبيض دافئ',
+    nameEn: 'Off-white',
+    meaningAr: 'نقاء، مساحة تنفّس، وضوح',
+    industries: ['جميع القطاعات'],
+    menaNote: 'الأبيض النقي قد يبدو بارداً؛ الأبيض المائل للكريمي أدفأ للسياق العربي.',
+  },
+  {
+    hex: '#a16207',
+    nameAr: 'رملي',
+    nameEn: 'Sand',
+    meaningAr: 'دفء، تراث، أرضية',
+    industries: ['ثقافة', 'ضيافة', 'عقار'],
+    menaNote: 'حجر أساس لهوية عربية معاصرة؛ ينسجم مع الأخضر والكحلي.',
+  },
 ];
 
 export function nearestColorName(hex: string): ColorPsychology {
@@ -380,7 +472,10 @@ export function nearestColorName(hex: string): ColorPsychology {
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const entry of COLOR_PSYCHOLOGY) {
     const hsl = rgbToHsl(hexToRgb(entry.hex));
-    const distance = hsl.l < 0.12 || hsl.l > 0.9 ? Math.abs(target.l - hsl.l) * 180 : hueDistance(target.h, hsl.h) + Math.abs(target.l - hsl.l) * 60;
+    const distance =
+      hsl.l < 0.12 || hsl.l > 0.9
+        ? Math.abs(target.l - hsl.l) * 180
+        : hueDistance(target.h, hsl.h) + Math.abs(target.l - hsl.l) * 60;
     if (distance < bestDistance) {
       bestDistance = distance;
       best = entry;

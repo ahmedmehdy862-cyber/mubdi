@@ -17,7 +17,6 @@ import {
   safeRect,
   type ArtDirection,
   type ComposeCopy,
-  type LayoutPlan,
   type Palette,
   type PlannedShape,
   type PlannedText,
@@ -63,11 +62,18 @@ const DIRECTION_PRIMARY: Record<string, string> = {
 const FALLBACK_HEADLINE = 'عنوان رئيسي';
 const FALLBACK_CTA = 'سجّل الآن';
 
-const isHex = (value: string | undefined): value is string => Boolean(value && /^#?[0-9a-f]{3,8}$/i.test(value));
+const isHex = (value: string | undefined): value is string =>
+  Boolean(value && /^#?[0-9a-f]{3,8}$/i.test(value));
 
 function normalizeHex(hex: string): string {
   const clean = hex.replace(/^#/, '');
-  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean;
   return `#${full.slice(0, 6).padEnd(6, '0')}`;
 }
 
@@ -90,7 +96,9 @@ function isLight(hex: string): boolean {
 
 function buildPaletteFor(brief: DesignBrief, direction: ArtDirection, brand?: SpecBrand): Palette {
   const intents = brief.visualDirection.colorIntent.filter(isHex);
-  const primary = normalizeHex(brand?.palette?.primary ?? intents[0] ?? DIRECTION_PRIMARY[direction.id] ?? '#1f7a3d');
+  const primary = normalizeHex(
+    brand?.palette?.primary ?? intents[0] ?? DIRECTION_PRIMARY[direction.id] ?? '#1f7a3d',
+  );
   const accent = brand?.palette?.accent ?? intents[1];
   const brandBg = brand?.palette?.background;
   const mode = brandBg ? (isLight(brandBg) ? 'light' : 'dark') : direction.paletteMode;
@@ -118,7 +126,11 @@ function buildPaletteFor(brief: DesignBrief, direction: ArtDirection, brand?: Sp
   }
   if (brand?.palette?.text) {
     const text = ensureContrast(normalizeHex(brand.palette.text), palette.background, 7);
-    palette = { ...palette, text, textMuted: ensureContrast(mixHex(text, palette.background, 0.3), palette.background, 4.5) };
+    palette = {
+      ...palette,
+      text,
+      textMuted: ensureContrast(mixHex(text, palette.background, 0.3), palette.background, 4.5),
+    };
   }
   return palette;
 }
@@ -129,7 +141,10 @@ function fontsFor(direction: ArtDirection, brand?: SpecBrand): { display: string
   return { display: pairing.display, body: pairing.body };
 }
 
-function typeFor(preset: { width: number; height: number; minFontSize: number }, direction: ArtDirection): TypeScale {
+function typeFor(
+  preset: { width: number; height: number; minFontSize: number },
+  direction: ArtDirection,
+): TypeScale {
   return makeTypeScale({
     canvasMin: Math.min(preset.width, preset.height),
     scale: direction.typeScale,
@@ -148,7 +163,8 @@ const ROLE_NAME: Record<TextRole, string> = {
 };
 
 function shapeToLayer(shape: PlannedShape, palette: Palette, index: number): Layer {
-  const type: Layer['type'] = shape.kind === 'image' ? 'image' : shape.kind === 'scrim' ? 'overlay' : 'shape';
+  const type: Layer['type'] =
+    shape.kind === 'image' ? 'image' : shape.kind === 'scrim' ? 'overlay' : 'shape';
   const metadata: Record<string, unknown> = { shape: shape.kind };
   if (shape.radius !== undefined) metadata['radius'] = shape.radius;
   if (shape.gradient) {
@@ -197,7 +213,10 @@ function textToLayer(
   backdropHex?: string,
 ): Layer {
   const weightBold = block.weight === 'bold' || block.role === 'headline' || block.role === 'cta';
-  const family = block.role === 'headline' || block.role === 'cta' || block.role === 'logo' ? fonts.display : fonts.body;
+  const family =
+    block.role === 'headline' || block.role === 'cta' || block.role === 'logo'
+      ? fonts.display
+      : fonts.body;
   const text = block.lines.filter(Boolean).join('\n') || block.text;
   // Contrast must be measured against what is actually behind the glyphs:
   // CTA text sits on its own pill, not on the page background.
@@ -240,7 +259,15 @@ function textToLayer(
   };
 }
 
-function clampTextLayers(layers: Layer[], preset: { width: number; height: number; margins: number; safeZones: { top: number; right: number; bottom: number; left: number } }): void {
+function clampTextLayers(
+  layers: Layer[],
+  preset: {
+    width: number;
+    height: number;
+    margins: number;
+    safeZones: { top: number; right: number; bottom: number; left: number };
+  },
+): void {
   const safe = safeRect(preset.width, preset.height, preset.safeZones, preset.margins);
   for (const layer of layers) {
     if (layer.type !== 'text') continue;
@@ -257,7 +284,16 @@ function clampTextLayers(layers: Layer[], preset: { width: number; height: numbe
   }
 }
 
-function logoPlaceholder(preset: { width: number; height: number; margins: number; safeZones: { top: number; right: number; bottom: number; left: number } }, palette: Palette, rtl: boolean): Layer {
+function logoPlaceholder(
+  preset: {
+    width: number;
+    height: number;
+    margins: number;
+    safeZones: { top: number; right: number; bottom: number; left: number };
+  },
+  palette: Palette,
+  rtl: boolean,
+): Layer {
   const safe = safeRect(preset.width, preset.height, preset.safeZones, preset.margins);
   const width = Math.max(96, Math.round(Math.min(220, preset.width * 0.2)));
   const height = Math.round(width * 0.3);
@@ -310,7 +346,8 @@ export function generateVariantDetails(
   const preset = getPreset(presetId) ?? getPreset('ig_post_4x5')!;
   const rtl = brief.direction !== 'ltr';
   const choices = pickDirections(brief, 3);
-  const choice = choices[((variant % choices.length) + choices.length) % choices.length] ?? choices[0]!;
+  const choice =
+    choices[((variant % choices.length) + choices.length) % choices.length] ?? choices[0]!;
   const direction = choice.direction;
   const palette = buildPaletteFor(brief, direction, brand);
   const fonts = fontsFor(direction, brand);
@@ -396,11 +433,20 @@ export function generateVariantDetails(
 
   clampTextLayers(layers, preset);
 
-  const colors = [...new Map(
-    [palette.background, palette.surface, palette.primary, palette.accent, palette.text, palette.textMuted]
-      .filter(isHex)
-      .map((hex) => [normalizeHex(hex), hexToColor(hex)] as const),
-  ).values()];
+  const colors = [
+    ...new Map(
+      [
+        palette.background,
+        palette.surface,
+        palette.primary,
+        palette.accent,
+        palette.text,
+        palette.textMuted,
+      ]
+        .filter(isHex)
+        .map((hex) => [normalizeHex(hex), hexToColor(hex)] as const),
+    ).values(),
+  ];
 
   const spec: DesignSpec = {
     id: crypto.randomUUID(),
@@ -412,7 +458,15 @@ export function generateVariantDetails(
       platform: preset.id,
     },
     layers,
-    groups: ['90_Background', '10_Text', '20_Brand', '30_Graphics', '40_Imagery', '50_Overlays', '00_Guides'],
+    groups: [
+      '90_Background',
+      '10_Text',
+      '20_Brand',
+      '30_Graphics',
+      '40_Imagery',
+      '50_Overlays',
+      '00_Guides',
+    ],
     fonts: [...new Set([fonts.display, fonts.body, `${fonts.display}-Bold`, `${fonts.body}-Bold`])],
     colors,
     version: 1,
@@ -435,12 +489,21 @@ export function generateVariantDetails(
   };
 }
 
-export function generateSpec(brief: DesignBrief, presetId: string, variant: number, brand?: SpecBrand): DesignSpec {
+export function generateSpec(
+  brief: DesignBrief,
+  presetId: string,
+  variant: number,
+  brand?: SpecBrand,
+): DesignSpec {
   return generateVariantDetails(brief, presetId, variant, brand).spec;
 }
 
 /** All three variants plus rationale, used by the desktop UI. */
-export function generateVariantSet(brief: DesignBrief, presetId: string, brand?: SpecBrand): GeneratedVariant[] {
+export function generateVariantSet(
+  brief: DesignBrief,
+  presetId: string,
+  brand?: SpecBrand,
+): GeneratedVariant[] {
   const used = new Set<string>();
   const out: GeneratedVariant[] = [];
   for (let variant = 0; variant < 3; variant++) {

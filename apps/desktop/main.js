@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let mainWindow;
-let core, specMod, psdMod, renderMod, brandConfig;
+let core, psdMod, renderMod, brandConfig;
 
 // Portable install: keep user data next to the executable instead of on C:.
 if (app.isPackaged) {
@@ -14,7 +14,6 @@ if (app.isPackaged) {
 
 async function loadModules() {
   core = await import('../../packages/core/dist/index.js');
-  specMod = core;
   psdMod = await import('../../packages/psd-engine/dist/index.js');
   renderMod = await import('../../packages/renderer/dist/index.js');
   brandConfig = await import('../../packages/brand/dist/index.js');
@@ -44,10 +43,14 @@ function createWindow() {
 app.whenReady().then(async () => {
   await loadModules();
   createWindow();
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 });
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
 
 ipcMain.handle('parseBrief', async (_e, prompt) => {
   const brief = core.parseBrief(prompt);
@@ -106,7 +109,8 @@ ipcMain.handle('getBrand', async () => {
 ipcMain.handle('detectTools', async () => {
   const fs = await import('node:fs');
   const psPath = 'C:/Program Files/Adobe/Adobe Photoshop 2025/Photoshop.exe';
-  const aiPath = 'C:/Program Files/Adobe/Adobe Illustrator 2025/Support Files/Contents/Windows/Illustrator.exe';
+  const aiPath =
+    'C:/Program Files/Adobe/Adobe Illustrator 2025/Support Files/Contents/Windows/Illustrator.exe';
   return {
     photoshop: fs.existsSync(psPath),
     illustrator: fs.existsSync(aiPath),

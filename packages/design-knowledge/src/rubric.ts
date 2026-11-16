@@ -1,7 +1,15 @@
 import type { Color, DesignBrief, DesignSpec, Layer } from '@mubdi/schemas';
 import { checkHierarchy, measureTextWidth } from './typography.js';
-import { classifyPalette, contrastRatio, hexToRgb, requiredContrast, rgbToHex, rgbToHsl, type Rgb } from './color.js';
-import { isOnGrid, makeGrid, snap, SPACING_SCALE } from './grid.js';
+import {
+  classifyPalette,
+  contrastRatio,
+  hexToRgb,
+  requiredContrast,
+  rgbToHex,
+  rgbToHsl,
+  type Rgb,
+} from './color.js';
+import { isOnGrid, makeGrid, SPACING_SCALE } from './grid.js';
 
 /**
  * Measurable design criticism. Every number below is derived from the actual
@@ -24,7 +32,16 @@ export interface Finding {
   threshold?: number;
 }
 
-export type CategoryId = 'contrast' | 'hierarchy' | 'spacing' | 'alignment' | 'balance' | 'density' | 'typography' | 'color' | 'platform';
+export type CategoryId =
+  | 'contrast'
+  | 'hierarchy'
+  | 'spacing'
+  | 'alignment'
+  | 'balance'
+  | 'density'
+  | 'typography'
+  | 'color'
+  | 'platform';
 
 export interface CategoryResult {
   id: CategoryId;
@@ -152,13 +169,23 @@ function categoryScore(findings: Finding[]): number {
   return Math.max(0, Math.min(100, score));
 }
 
-export function evaluateDesign(spec: DesignSpec, brief: DesignBrief, preset: RubricPreset): Evaluation {
+export function evaluateDesign(
+  spec: DesignSpec,
+  brief: DesignBrief,
+  preset: RubricPreset,
+): Evaluation {
   const findings: Finding[] = [];
   const texts = textLayers(spec);
   const headline = texts.find((l) => l.name === 'HEADLINE');
-  const margins = preset.margins ?? Math.round(Math.min(spec.canvas.width, spec.canvas.height) * 0.06);
+  const margins =
+    preset.margins ?? Math.round(Math.min(spec.canvas.width, spec.canvas.height) * 0.06);
   const minFontSize = preset.minFontSize ?? 22;
-  const grid = makeGrid({ width: spec.canvas.width, height: spec.canvas.height, margin: margins, rtl: brief.direction !== 'ltr' });
+  const grid = makeGrid({
+    width: spec.canvas.width,
+    height: spec.canvas.height,
+    margin: margins,
+    rtl: brief.direction !== 'ltr',
+  });
 
   // ---------------------------------------------------------------- contrast
   let minContrast = 99;
@@ -248,7 +275,8 @@ export function evaluateDesign(spec: DesignSpec, brief: DesignBrief, preset: Rub
       severity: 'minor',
       messageAr: `المسافات بين الكتل لا تتبع مقياساً ثابتاً (${offScale.slice(0, 3).join('، ')}px خارج المقياس).`,
       messageEn: `Block gaps are off the spacing scale (${offScale.slice(0, 3).join(', ')}px).`,
-      fixAr: 'استخدم 8/16/24/32/48 فقط بين الكتل، وثبّت المسافة داخل المجموعة أصغر من المسافة بين المجموعات.',
+      fixAr:
+        'استخدم 8/16/24/32/48 فقط بين الكتل، وثبّت المسافة داخل المجموعة أصغر من المسافة بين المجموعات.',
       principleId: 'proximity',
       measured: Number((offScale.length / gaps.length).toFixed(2)),
       threshold: 0.34,
@@ -338,9 +366,14 @@ export function evaluateDesign(spec: DesignSpec, brief: DesignBrief, preset: Rub
   let cySum = 0;
   for (const l of spec.layers) {
     if (l.visible === false || l.type === 'guide') continue;
-    const fill = l.fill ? hexToRgb(colorHex(l.fill)) : l.textRuns?.[0] ? hexToRgb(colorHex(l.textRuns[0].color)) : { r: 128, g: 128, b: 128 };
+    const fill = l.fill
+      ? hexToRgb(colorHex(l.fill))
+      : l.textRuns?.[0]
+        ? hexToRgb(colorHex(l.textRuns[0].color))
+        : { r: 128, g: 128, b: 128 };
     const diff = contrastRatio(fill, bgRgb);
-    const weight = Math.pow(l.width * l.height, 0.85) * Math.max(0.05, l.opacity) * Math.min(3, diff);
+    const weight =
+      Math.pow(l.width * l.height, 0.85) * Math.max(0.05, l.opacity) * Math.min(3, diff);
     weightSum += weight;
     cxSum += (l.x + l.width / 2) * weight;
     cySum += (l.y + l.height / 2) * weight;
@@ -390,7 +423,10 @@ export function evaluateDesign(spec: DesignSpec, brief: DesignBrief, preset: Rub
     });
   }
   const shapeArea = spec.layers
-    .filter((l) => l.type !== 'text' && l.type !== 'guide' && l.type !== 'background' && l.visible !== false)
+    .filter(
+      (l) =>
+        l.type !== 'text' && l.type !== 'guide' && l.type !== 'background' && l.visible !== false,
+    )
     .reduce((sum, l) => sum + shapeInk(l) * l.opacity, 0);
   const inkRatio = Math.min(1, (textInk + shapeArea) / canvasArea);
   if (inkRatio > 0.85) {
@@ -535,13 +571,14 @@ export function evaluateDesign(spec: DesignSpec, brief: DesignBrief, preset: Rub
       });
     }
   }
-  const accentShare = spec.layers
-    .filter((l) => l.fill && l.type !== 'background' && l.visible !== false)
-    .filter((l) => {
-      const hsl = rgbToHsl(hexToRgb(colorHex(l.fill!)));
-      return hsl.s >= 0.2 && hsl.l > 0.12 && hsl.l < 0.9;
-    })
-    .reduce((sum, l) => sum + shapeInk(l) * l.opacity, 0) / canvasArea;
+  const accentShare =
+    spec.layers
+      .filter((l) => l.fill && l.type !== 'background' && l.visible !== false)
+      .filter((l) => {
+        const hsl = rgbToHsl(hexToRgb(colorHex(l.fill!)));
+        return hsl.s >= 0.2 && hsl.l > 0.12 && hsl.l < 0.9;
+      })
+      .reduce((sum, l) => sum + shapeInk(l) * l.opacity, 0) / canvasArea;
   if (accentShare > 0.28) {
     pushFinding(findings, {
       id: 'color.accentShare',
@@ -558,7 +595,12 @@ export function evaluateDesign(spec: DesignSpec, brief: DesignBrief, preset: Rub
   // ---------------------------------------------------------------- platform
   let safeViolations = 0;
   for (const l of texts) {
-    if (l.y < preset.safeZones.top - 1 || l.y + l.height > preset.height - preset.safeZones.bottom + 1 || l.x < preset.safeZones.left - 1 || l.x + l.width > preset.width - preset.safeZones.right + 1) {
+    if (
+      l.y < preset.safeZones.top - 1 ||
+      l.y + l.height > preset.height - preset.safeZones.bottom + 1 ||
+      l.x < preset.safeZones.left - 1 ||
+      l.x + l.width > preset.width - preset.safeZones.right + 1
+    ) {
       safeViolations++;
       pushFinding(findings, {
         id: 'platform.safeZone',
@@ -573,7 +615,11 @@ export function evaluateDesign(spec: DesignSpec, brief: DesignBrief, preset: Rub
     }
   }
   const marginViolations = spec.layers.filter(
-    (l) => l.visible !== false && l.type !== 'guide' && l.type !== 'background' && (l.x < margins - 2 || l.x + l.width > spec.canvas.width - margins + 2),
+    (l) =>
+      l.visible !== false &&
+      l.type !== 'guide' &&
+      l.type !== 'background' &&
+      (l.x < margins - 2 || l.x + l.width > spec.canvas.width - margins + 2),
   ).length;
   if (marginViolations > 0) {
     pushFinding(findings, {
@@ -602,7 +648,13 @@ export function evaluateDesign(spec: DesignSpec, brief: DesignBrief, preset: Rub
   // ---------------------------------------------------------------- assembly
   const categories: CategoryResult[] = WEIGHTS.map((w) => {
     const catFindings = findings.filter((f) => f.category === w.id);
-    return { id: w.id, nameAr: w.nameAr, weight: w.weight, score: categoryScore(catFindings), findings: catFindings };
+    return {
+      id: w.id,
+      nameAr: w.nameAr,
+      weight: w.weight,
+      score: categoryScore(catFindings),
+      findings: catFindings,
+    };
   });
   // A weighted average alone lets one critical failure hide behind nine clean
   // categories. A critical must cap the grade: a design that is unreadable is
@@ -613,11 +665,36 @@ export function evaluateDesign(spec: DesignSpec, brief: DesignBrief, preset: Rub
   if (criticalCount >= 2) score = Math.min(score, 62);
   else if (criticalCount === 1) score = Math.min(score, 79);
   else if (majorCount >= 3) score = Math.min(score, 84);
-  const grade = score >= 95 ? 'A+' : score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F';
-  const gradeAr = score >= 95 ? 'احترافي' : score >= 90 ? 'ممتاز' : score >= 80 ? 'جيد جداً' : score >= 70 ? 'جيد' : score >= 60 ? 'مقبول' : 'يحتاج مراجعة';
+  const grade =
+    score >= 95
+      ? 'A+'
+      : score >= 90
+        ? 'A'
+        : score >= 80
+          ? 'B'
+          : score >= 70
+            ? 'C'
+            : score >= 60
+              ? 'D'
+              : 'F';
+  const gradeAr =
+    score >= 95
+      ? 'احترافي'
+      : score >= 90
+        ? 'ممتاز'
+        : score >= 80
+          ? 'جيد جداً'
+          : score >= 70
+            ? 'جيد'
+            : score >= 60
+              ? 'مقبول'
+              : 'يحتاج مراجعة';
 
   const sortedCats = [...categories].sort((a, b) => b.score - a.score);
-  const strengthsAr = sortedCats.slice(0, 3).filter((c) => c.score >= 85).map((c) => `${c.nameAr}: ${c.score}/100`);
+  const strengthsAr = sortedCats
+    .slice(0, 3)
+    .filter((c) => c.score >= 85)
+    .map((c) => `${c.nameAr}: ${c.score}/100`);
   const improvementsAr = [...findings]
     .sort((a, b) => PENALTY[b.severity] - PENALTY[a.severity])
     .slice(0, 5)

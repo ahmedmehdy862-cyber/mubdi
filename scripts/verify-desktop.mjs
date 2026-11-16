@@ -12,7 +12,9 @@ async function getTarget() {
       const list = await res.json();
       const page = list.find((t) => t.type === 'page' && !t.url.startsWith('devtools'));
       if (page && page.webSocketDebuggerUrl) return page;
-    } catch {}
+    } catch {
+      /* app not listening yet */
+    }
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error('No CDP page target found');

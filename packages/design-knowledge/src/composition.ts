@@ -1,5 +1,4 @@
-import type { DesignBrief } from '@mubdi/schemas';
-import { alignRectX, columnSpan, makeGrid, safeRect, snap, space, type Grid, type Rect } from './grid.js';
+import { alignRectX, makeGrid, safeRect, space, type Grid, type Rect } from './grid.js';
 import { measureTextWidth, textBlockHeight, wrapText, type TypeScale } from './typography.js';
 import type { ArtDirection } from './direction.js';
 import type { Palette } from './color.js';
@@ -85,7 +84,12 @@ const gapFor = (n: number): number => space(n);
 
 function makeCtx(input: ComposeInput): Ctx {
   const page: Rect = { x: 0, y: 0, width: input.preset.width, height: input.preset.height };
-  const content = safeRect(input.preset.width, input.preset.height, input.preset.safeZones, input.preset.margins);
+  const content = safeRect(
+    input.preset.width,
+    input.preset.height,
+    input.preset.safeZones,
+    input.preset.margins,
+  );
   const grid = makeGrid({
     width: input.preset.width,
     height: input.preset.height,
@@ -110,8 +114,13 @@ function buildText(
     y?: number;
   },
 ): PlannedText {
-  const lines = wrapText(text, { maxWidth: opts.width, fontSize: opts.size, maxLines: opts.maxLines ?? 4 });
-  const leading = opts.leading ?? (role === 'headline' ? ctx.type.leading.heading : ctx.type.leading.body);
+  const lines = wrapText(text, {
+    maxWidth: opts.width,
+    fontSize: opts.size,
+    maxLines: opts.maxLines ?? 4,
+  });
+  const leading =
+    opts.leading ?? (role === 'headline' ? ctx.type.leading.heading : ctx.type.leading.body);
   const height = textBlockHeight(lines, opts.size, leading);
   const x = alignRectX(
     { x: ctx.content.x, y: 0, width: opts.width, height },
@@ -134,7 +143,12 @@ function buildText(
 }
 
 /** Vertical stack: sets y positions, returns the bottom edge. */
-function stack(blocks: PlannedText[], anchorY: number, direction: 'down' | 'up', gap: number): number {
+function stack(
+  blocks: PlannedText[],
+  anchorY: number,
+  direction: 'down' | 'up',
+  gap: number,
+): number {
   let cursor = anchorY;
   const ordered = direction === 'down' ? blocks : [...blocks].reverse();
   for (const block of ordered) {
@@ -190,15 +204,33 @@ function posterStack(ctx: Ctx): LayoutPlan {
     maxLines: 3,
   });
   const eyebrow = copy.eyebrow
-    ? buildText(ctx, 'eyebrow', copy.eyebrow, { size: type.eyebrow, align: 'start', width, color: palette.accent, maxLines: 1 })
+    ? buildText(ctx, 'eyebrow', copy.eyebrow, {
+        size: type.eyebrow,
+        align: 'start',
+        width,
+        color: palette.accent,
+        maxLines: 1,
+      })
     : undefined;
   const subhead = copy.subhead
-    ? buildText(ctx, 'subhead', copy.subhead, { size: type.h3, align: 'start', width, color: palette.textMuted, maxLines: 2 })
+    ? buildText(ctx, 'subhead', copy.subhead, {
+        size: type.h3,
+        align: 'start',
+        width,
+        color: palette.textMuted,
+        maxLines: 2,
+      })
     : undefined;
 
   const ctaText = copy.cta ?? '';
   const cta = ctaText
-    ? buildText(ctx, 'cta', ctaText, { size: type.cta, align: 'center', width: Math.max(220, measureTextWidth(ctaText, type.cta) + type.cta * 2.6), color: palette.onPrimary, maxLines: 1 })
+    ? buildText(ctx, 'cta', ctaText, {
+        size: type.cta,
+        align: 'center',
+        width: Math.max(220, measureTextWidth(ctaText, type.cta) + type.cta * 2.6),
+        color: palette.onPrimary,
+        maxLines: 1,
+      })
     : undefined;
 
   const gap = gapFor(Math.round(type.body * 0.75));
@@ -211,12 +243,22 @@ function posterStack(ctx: Ctx): LayoutPlan {
 
   if (cta) {
     const shapeY = content.y + content.height - cta.rect.height;
-    cta.rect.x = alignRectX({ x: content.x, y: 0, width: content.width, height: 1 }, cta.rect.width, 'start', ctx.rtl);
+    cta.rect.x = alignRectX(
+      { x: content.x, y: 0, width: content.width, height: 1 },
+      cta.rect.width,
+      'start',
+      ctx.rtl,
+    );
     cta.rect.y = Math.round(shapeY + (cta.rect.height - cta.rect.height) / 2);
     const ctaShape: PlannedShape = {
       id: 'cta-bg',
       kind: 'rect',
-      rect: { x: cta.rect.x, y: Math.round(shapeY), width: cta.rect.width, height: cta.rect.height },
+      rect: {
+        x: cta.rect.x,
+        y: Math.round(shapeY),
+        width: cta.rect.width,
+        height: cta.rect.height,
+      },
       fill: palette.primary,
       opacity: 1,
       radius: gapFor(16),
@@ -225,14 +267,54 @@ function posterStack(ctx: Ctx): LayoutPlan {
       archetype: 'poster-stack',
       nameAr: 'ملصق عمودي',
       rationaleAr: 'عنوان ضخم في الثلث السفلي مع فراغ علوي يمنح العنوان حضوراً ومساحة تنفّس.',
-      blocks: [...stackBlocks, cta, ...(logoBlock(ctx).text ? [{ ...logoBlock(ctx), rect: { ...logoBlock(ctx).rect, x: alignRectX(content, logoBlock(ctx).rect.width, 'start', ctx.rtl), y: content.y } }] : [])],
+      blocks: [
+        ...stackBlocks,
+        cta,
+        ...(logoBlock(ctx).text
+          ? [
+              {
+                ...logoBlock(ctx),
+                rect: {
+                  ...logoBlock(ctx).rect,
+                  x: alignRectX(content, logoBlock(ctx).rect.width, 'start', ctx.rtl),
+                  y: content.y,
+                },
+              },
+            ]
+          : []),
+      ],
       shapes: [
         ctaShape,
-        { id: 'accent-bar', kind: 'rect', rect: { x: alignRectX(content, 8, 'start', ctx.rtl), y: content.y, width: 8, height: gapFor(96) }, fill: palette.accent, opacity: 1 },
-        { id: 'halo', kind: 'circle', rect: { x: alignRectX(content, content.width * 0.55, 'end', ctx.rtl), y: content.y + content.height * 0.06, width: content.width * 0.55, height: content.width * 0.55 }, fill: palette.primary, opacity: 0.08 },
+        {
+          id: 'accent-bar',
+          kind: 'rect',
+          rect: {
+            x: alignRectX(content, 8, 'start', ctx.rtl),
+            y: content.y,
+            width: 8,
+            height: gapFor(96),
+          },
+          fill: palette.accent,
+          opacity: 1,
+        },
+        {
+          id: 'halo',
+          kind: 'circle',
+          rect: {
+            x: alignRectX(content, content.width * 0.55, 'end', ctx.rtl),
+            y: content.y + content.height * 0.06,
+            width: content.width * 0.55,
+            height: content.width * 0.55,
+          },
+          fill: palette.primary,
+          opacity: 0.08,
+        },
       ],
       readingFlow: 'rtl-z',
-      focal: { x: content.x + content.width * 0.5, y: headline.rect.y + headline.rect.height * 0.4 },
+      focal: {
+        x: content.x + content.width * 0.5,
+        y: headline.rect.y + headline.rect.height * 0.4,
+      },
     };
   }
 
@@ -240,9 +322,30 @@ function posterStack(ctx: Ctx): LayoutPlan {
     archetype: 'poster-stack',
     nameAr: 'ملصق عمودي',
     rationaleAr: 'عنوان ضخم مع فراغ علوي محسوب.',
-    blocks: [...stackBlocks, { ...logoBlock(ctx), rect: { ...logoBlock(ctx).rect, x: alignRectX(content, logoBlock(ctx).rect.width, 'start', ctx.rtl), y: content.y } }],
+    blocks: [
+      ...stackBlocks,
+      {
+        ...logoBlock(ctx),
+        rect: {
+          ...logoBlock(ctx).rect,
+          x: alignRectX(content, logoBlock(ctx).rect.width, 'start', ctx.rtl),
+          y: content.y,
+        },
+      },
+    ],
     shapes: [
-      { id: 'accent-bar', kind: 'rect', rect: { x: alignRectX(content, 8, 'start', ctx.rtl), y: content.y, width: 8, height: gapFor(96) }, fill: palette.accent, opacity: 1 },
+      {
+        id: 'accent-bar',
+        kind: 'rect',
+        rect: {
+          x: alignRectX(content, 8, 'start', ctx.rtl),
+          y: content.y,
+          width: 8,
+          height: gapFor(96),
+        },
+        fill: palette.accent,
+        opacity: 1,
+      },
     ],
     readingFlow: 'rtl-z',
     focal: { x: content.x + content.width * 0.5, y: headline.rect.y + headline.rect.height * 0.4 },
@@ -256,11 +359,29 @@ function editorialStack(ctx: Ctx): LayoutPlan {
   const shapes: PlannedShape[] = [];
 
   const eyebrow = copy.eyebrow
-    ? buildText(ctx, 'eyebrow', copy.eyebrow, { size: type.eyebrow, align: 'start', width: columnWidth, color: palette.accent, maxLines: 1 })
+    ? buildText(ctx, 'eyebrow', copy.eyebrow, {
+        size: type.eyebrow,
+        align: 'start',
+        width: columnWidth,
+        color: palette.accent,
+        maxLines: 1,
+      })
     : undefined;
-  const headline = buildText(ctx, 'headline', copy.headline, { size: type.h1, align: 'start', width: columnWidth, color: palette.text, maxLines: 3 });
+  const headline = buildText(ctx, 'headline', copy.headline, {
+    size: type.h1,
+    align: 'start',
+    width: columnWidth,
+    color: palette.text,
+    maxLines: 3,
+  });
   const body = copy.body
-    ? buildText(ctx, 'body', copy.body, { size: type.body, align: 'start', width: columnWidth, color: palette.textMuted, maxLines: 3 })
+    ? buildText(ctx, 'body', copy.body, {
+        size: type.body,
+        align: 'start',
+        width: columnWidth,
+        color: palette.textMuted,
+        maxLines: 3,
+      })
     : undefined;
 
   const top = content.y + gapFor(24);
@@ -272,11 +393,22 @@ function editorialStack(ctx: Ctx): LayoutPlan {
   // Hairline rule under the header block.
   const last = blocks[blocks.length - 1]!;
   const ruleY = last.rect.y + last.rect.height + gapFor(24);
-  shapes.push({ id: 'rule', kind: 'line', rect: { x: content.x, y: ruleY, width: content.width, height: 2 }, fill: palette.border, opacity: 1 });
+  shapes.push({
+    id: 'rule',
+    kind: 'line',
+    rect: { x: content.x, y: ruleY, width: content.width, height: 2 },
+    fill: palette.border,
+    opacity: 1,
+  });
 
   // Bottom image band with a scrim.
   const bandH = Math.round(content.height * 0.3);
-  const band: Rect = { x: content.x, y: content.y + content.height - bandH, width: content.width, height: bandH };
+  const band: Rect = {
+    x: content.x,
+    y: content.y + content.height - bandH,
+    width: content.width,
+    height: bandH,
+  };
   shapes.push({
     id: 'image-band',
     kind: 'image',
@@ -289,16 +421,36 @@ function editorialStack(ctx: Ctx): LayoutPlan {
 
   const footerY = band.y - gapFor(32);
   const footer = copy.footer
-    ? buildText(ctx, 'footer', copy.footer, { size: type.caption, align: 'start', width: columnWidth, color: palette.textMuted, maxLines: 1, y: footerY - type.caption * 1.6 })
+    ? buildText(ctx, 'footer', copy.footer, {
+        size: type.caption,
+        align: 'start',
+        width: columnWidth,
+        color: palette.textMuted,
+        maxLines: 1,
+        y: footerY - type.caption * 1.6,
+      })
     : undefined;
   if (footer) blocks.push(footer);
 
   const ctaText = copy.cta;
   if (ctaText) {
-    const cta = buildText(ctx, 'cta', ctaText, { size: type.cta, align: 'center', width: measureTextWidth(ctaText, type.cta) + type.cta * 2.4, color: palette.onPrimary, maxLines: 1 });
+    const cta = buildText(ctx, 'cta', ctaText, {
+      size: type.cta,
+      align: 'center',
+      width: measureTextWidth(ctaText, type.cta) + type.cta * 2.4,
+      color: palette.onPrimary,
+      maxLines: 1,
+    });
     cta.rect.y = footerY - cta.rect.height - gapFor(24);
     cta.rect.x = alignRectX(content, cta.rect.width, 'start', ctx.rtl);
-    shapes.push({ id: 'cta-bg', kind: 'rect', rect: { ...cta.rect }, fill: palette.primary, opacity: 1, radius: gapFor(8) });
+    shapes.push({
+      id: 'cta-bg',
+      kind: 'rect',
+      rect: { ...cta.rect },
+      fill: palette.primary,
+      opacity: 1,
+      radius: gapFor(8),
+    });
     blocks.push(cta);
   }
 
@@ -315,7 +467,10 @@ function editorialStack(ctx: Ctx): LayoutPlan {
     shapes,
     imageArea: band,
     readingFlow: 'rtl-stack',
-    focal: { x: headline.rect.x + headline.rect.width * 0.5, y: headline.rect.y + headline.rect.height * 0.35 },
+    focal: {
+      x: headline.rect.x + headline.rect.width * 0.5,
+      y: headline.rect.y + headline.rect.height * 0.35,
+    },
   };
 }
 
@@ -325,11 +480,29 @@ function heroCenter(ctx: Ctx): LayoutPlan {
   const blocks: PlannedText[] = [];
 
   const eyebrow = copy.eyebrow
-    ? buildText(ctx, 'eyebrow', copy.eyebrow, { size: type.eyebrow, align: 'center', width, color: palette.accent, maxLines: 1 })
+    ? buildText(ctx, 'eyebrow', copy.eyebrow, {
+        size: type.eyebrow,
+        align: 'center',
+        width,
+        color: palette.accent,
+        maxLines: 1,
+      })
     : undefined;
-  const headline = buildText(ctx, 'headline', copy.headline, { size: Math.round(type.h1 * 1.06), align: 'center', width, color: palette.text, maxLines: 3 });
+  const headline = buildText(ctx, 'headline', copy.headline, {
+    size: Math.round(type.h1 * 1.06),
+    align: 'center',
+    width,
+    color: palette.text,
+    maxLines: 3,
+  });
   const subhead = copy.subhead
-    ? buildText(ctx, 'subhead', copy.subhead, { size: type.h3, align: 'center', width, color: palette.textMuted, maxLines: 2 })
+    ? buildText(ctx, 'subhead', copy.subhead, {
+        size: type.h3,
+        align: 'center',
+        width,
+        color: palette.textMuted,
+        maxLines: 2,
+      })
     : undefined;
 
   if (eyebrow) blocks.push(eyebrow);
@@ -344,8 +517,30 @@ function heroCenter(ctx: Ctx): LayoutPlan {
   for (const block of blocks) block.rect.x = centerX(content, block.rect.width);
 
   const shapes: PlannedShape[] = [
-    { id: 'top-rule', kind: 'line', rect: { x: centerX(content, content.width * 0.18), y: content.y, width: content.width * 0.18, height: 3 }, fill: palette.accent, opacity: 1 },
-    { id: 'bottom-rule', kind: 'line', rect: { x: centerX(content, content.width * 0.18), y: content.y + content.height - 3, width: content.width * 0.18, height: 3 }, fill: palette.accent, opacity: 1 },
+    {
+      id: 'top-rule',
+      kind: 'line',
+      rect: {
+        x: centerX(content, content.width * 0.18),
+        y: content.y,
+        width: content.width * 0.18,
+        height: 3,
+      },
+      fill: palette.accent,
+      opacity: 1,
+    },
+    {
+      id: 'bottom-rule',
+      kind: 'line',
+      rect: {
+        x: centerX(content, content.width * 0.18),
+        y: content.y + content.height - 3,
+        width: content.width * 0.18,
+        height: 3,
+      },
+      fill: palette.accent,
+      opacity: 1,
+    },
   ];
 
   const logo = logoBlock(ctx);
@@ -355,11 +550,27 @@ function heroCenter(ctx: Ctx): LayoutPlan {
 
   const ctaText = copy.cta;
   if (ctaText) {
-    const cta = buildText(ctx, 'cta', ctaText, { size: type.cta, align: 'center', width: measureTextWidth(ctaText, type.cta) + type.cta * 2.6, color: palette.onPrimary, maxLines: 1 });
+    const cta = buildText(ctx, 'cta', ctaText, {
+      size: type.cta,
+      align: 'center',
+      width: measureTextWidth(ctaText, type.cta) + type.cta * 2.6,
+      color: palette.onPrimary,
+      maxLines: 1,
+    });
     const anchor = blocks[blocks.length - 1]!;
     cta.rect.x = centerX(content, cta.rect.width);
-    cta.rect.y = Math.min(content.y + content.height - cta.rect.height, anchor.rect.y + anchor.rect.height + gapFor(48));
-    shapes.push({ id: 'cta-bg', kind: 'rect', rect: { ...cta.rect }, fill: palette.primary, opacity: 1, radius: cta.rect.height / 2 });
+    cta.rect.y = Math.min(
+      content.y + content.height - cta.rect.height,
+      anchor.rect.y + anchor.rect.height + gapFor(48),
+    );
+    shapes.push({
+      id: 'cta-bg',
+      kind: 'rect',
+      rect: { ...cta.rect },
+      fill: palette.primary,
+      opacity: 1,
+      radius: cta.rect.height / 2,
+    });
     blocks.push(cta);
   }
 
@@ -377,26 +588,49 @@ function heroCenter(ctx: Ctx): LayoutPlan {
 function minimalFrame(ctx: Ctx): LayoutPlan {
   const { content, palette, type, copy } = ctx;
   const frameInset = gapFor(24);
-  const frame: Rect = { x: content.x - frameInset, y: content.y - frameInset, width: content.width + frameInset * 2, height: content.height + frameInset * 2 };
+  const frame: Rect = {
+    x: content.x - frameInset,
+    y: content.y - frameInset,
+    width: content.width + frameInset * 2,
+    height: content.height + frameInset * 2,
+  };
   const shapes: PlannedShape[] = [
     { id: 'frame', kind: 'frame', rect: frame, fill: palette.border, opacity: 1 },
   ];
 
   const width = Math.round(content.width * 0.8);
-  const headline = buildText(ctx, 'headline', copy.headline, { size: type.h1, align: 'center', width, color: palette.text, maxLines: 3 });
+  const headline = buildText(ctx, 'headline', copy.headline, {
+    size: type.h1,
+    align: 'center',
+    width,
+    color: palette.text,
+    maxLines: 3,
+  });
   headline.rect.x = centerX(content, width);
   headline.rect.y = Math.round(content.y + content.height * 0.47 - headline.rect.height / 2);
 
   const blocks: PlannedText[] = [headline];
 
   if (copy.subhead) {
-    const subhead = buildText(ctx, 'subhead', copy.subhead, { size: type.body, align: 'center', width, color: palette.textMuted, maxLines: 2 });
+    const subhead = buildText(ctx, 'subhead', copy.subhead, {
+      size: type.body,
+      align: 'center',
+      width,
+      color: palette.textMuted,
+      maxLines: 2,
+    });
     subhead.rect.x = centerX(content, width);
     subhead.rect.y = headline.rect.y + headline.rect.height + gapFor(48);
     blocks.push(subhead);
   }
   if (copy.footer) {
-    const footer = buildText(ctx, 'footer', copy.footer, { size: type.caption, align: 'center', width, color: palette.textMuted, maxLines: 1 });
+    const footer = buildText(ctx, 'footer', copy.footer, {
+      size: type.caption,
+      align: 'center',
+      width,
+      color: palette.textMuted,
+      maxLines: 1,
+    });
     footer.rect.x = centerX(content, width);
     footer.rect.y = content.y + content.height - footer.rect.height;
     blocks.push(footer);
@@ -424,11 +658,29 @@ function splitDiagonal(ctx: Ctx): LayoutPlan {
   const blocks: PlannedText[] = [];
 
   const eyebrow = copy.eyebrow
-    ? buildText(ctx, 'eyebrow', copy.eyebrow, { size: type.eyebrow, align: 'start', width: textWidth, color: palette.accent, maxLines: 1 })
+    ? buildText(ctx, 'eyebrow', copy.eyebrow, {
+        size: type.eyebrow,
+        align: 'start',
+        width: textWidth,
+        color: palette.accent,
+        maxLines: 1,
+      })
     : undefined;
-  const headline = buildText(ctx, 'headline', copy.headline, { size: type.h1, align: 'start', width: textWidth, color: palette.text, maxLines: 3 });
+  const headline = buildText(ctx, 'headline', copy.headline, {
+    size: type.h1,
+    align: 'start',
+    width: textWidth,
+    color: palette.text,
+    maxLines: 3,
+  });
   const body = copy.body
-    ? buildText(ctx, 'body', copy.body, { size: type.body, align: 'start', width: textWidth, color: palette.textMuted, maxLines: 3 })
+    ? buildText(ctx, 'body', copy.body, {
+        size: type.body,
+        align: 'start',
+        width: textWidth,
+        color: palette.textMuted,
+        maxLines: 3,
+      })
     : undefined;
 
   if (eyebrow) blocks.push(eyebrow);
@@ -441,17 +693,69 @@ function splitDiagonal(ctx: Ctx): LayoutPlan {
   // Diagonal band built from three offset bars (no rotation needed downstream).
   const bandX = ctx.rtl ? content.x : content.x + content.width * 0.62;
   const shapes: PlannedShape[] = [
-    { id: 'diag-1', kind: 'rect', rect: { x: Math.round(bandX), y: content.y, width: Math.round(content.width * 0.05), height: content.height }, fill: palette.primary, opacity: 0.18 },
-    { id: 'diag-2', kind: 'rect', rect: { x: Math.round(bandX + content.width * 0.07), y: content.y, width: Math.round(content.width * 0.03), height: content.height }, fill: palette.accent, opacity: 0.5 },
-    { id: 'image-side', kind: 'image', rect: { x: Math.round(ctx.rtl ? content.x : content.x + content.width * 0.64), y: content.y, width: Math.round(content.width * 0.36), height: content.height }, fill: palette.surface, opacity: 1, gradient: { from: palette.primary, to: palette.surface, angle: 65 } },
+    {
+      id: 'diag-1',
+      kind: 'rect',
+      rect: {
+        x: Math.round(bandX),
+        y: content.y,
+        width: Math.round(content.width * 0.05),
+        height: content.height,
+      },
+      fill: palette.primary,
+      opacity: 0.18,
+    },
+    {
+      id: 'diag-2',
+      kind: 'rect',
+      rect: {
+        x: Math.round(bandX + content.width * 0.07),
+        y: content.y,
+        width: Math.round(content.width * 0.03),
+        height: content.height,
+      },
+      fill: palette.accent,
+      opacity: 0.5,
+    },
+    {
+      id: 'image-side',
+      kind: 'image',
+      rect: {
+        x: Math.round(ctx.rtl ? content.x : content.x + content.width * 0.64),
+        y: content.y,
+        width: Math.round(content.width * 0.36),
+        height: content.height,
+      },
+      fill: palette.surface,
+      opacity: 1,
+      gradient: { from: palette.primary, to: palette.surface, angle: 65 },
+    },
   ];
 
   const ctaText = copy.cta;
   if (ctaText) {
-    const cta = buildText(ctx, 'cta', ctaText, { size: type.cta, align: 'center', width: measureTextWidth(ctaText, type.cta) + type.cta * 2.4, color: palette.onPrimary, maxLines: 1 });
-    cta.rect.x = alignRectX({ x: content.x, y: 0, width: textWidth, height: 1 }, cta.rect.width, 'start', ctx.rtl);
+    const cta = buildText(ctx, 'cta', ctaText, {
+      size: type.cta,
+      align: 'center',
+      width: measureTextWidth(ctaText, type.cta) + type.cta * 2.4,
+      color: palette.onPrimary,
+      maxLines: 1,
+    });
+    cta.rect.x = alignRectX(
+      { x: content.x, y: 0, width: textWidth, height: 1 },
+      cta.rect.width,
+      'start',
+      ctx.rtl,
+    );
     cta.rect.y = content.y + content.height - cta.rect.height;
-    shapes.push({ id: 'cta-bg', kind: 'rect', rect: { ...cta.rect }, fill: palette.primary, opacity: 1, radius: gapFor(8) });
+    shapes.push({
+      id: 'cta-bg',
+      kind: 'rect',
+      rect: { ...cta.rect },
+      fill: palette.primary,
+      opacity: 1,
+      radius: gapFor(8),
+    });
     blocks.push(cta);
   }
 
@@ -467,7 +771,10 @@ function splitDiagonal(ctx: Ctx): LayoutPlan {
     blocks,
     shapes,
     readingFlow: 'rtl-z',
-    focal: { x: headline.rect.x + headline.rect.width * 0.6, y: headline.rect.y + headline.rect.height * 0.4 },
+    focal: {
+      x: headline.rect.x + headline.rect.width * 0.6,
+      y: headline.rect.y + headline.rect.height * 0.4,
+    },
   };
 }
 
@@ -479,9 +786,21 @@ function eventPoster(ctx: Ctx): LayoutPlan {
   ];
 
   const eyebrow = copy.eyebrow
-    ? buildText(ctx, 'eyebrow', copy.eyebrow, { size: type.eyebrow, align: 'center', width: content.width, color: palette.accent, maxLines: 1 })
+    ? buildText(ctx, 'eyebrow', copy.eyebrow, {
+        size: type.eyebrow,
+        align: 'center',
+        width: content.width,
+        color: palette.accent,
+        maxLines: 1,
+      })
     : undefined;
-  const headline = buildText(ctx, 'headline', copy.headline, { size: Math.round(type.h1 * 1.02), align: 'center', width: Math.round(content.width * 0.88), color: palette.text, maxLines: 3 });
+  const headline = buildText(ctx, 'headline', copy.headline, {
+    size: Math.round(type.h1 * 1.02),
+    align: 'center',
+    width: Math.round(content.width * 0.88),
+    color: palette.text,
+    maxLines: 3,
+  });
   headline.rect.x = centerX(content, headline.rect.width);
 
   if (eyebrow) {
@@ -495,13 +814,25 @@ function eventPoster(ctx: Ctx): LayoutPlan {
   stack(blocks, startY, 'down', gap);
 
   if (copy.subhead) {
-    const subhead = buildText(ctx, 'subhead', copy.subhead, { size: type.h2, align: 'center', width: Math.round(content.width * 0.8), color: palette.accent, maxLines: 2 });
+    const subhead = buildText(ctx, 'subhead', copy.subhead, {
+      size: type.h2,
+      align: 'center',
+      width: Math.round(content.width * 0.8),
+      color: palette.accent,
+      maxLines: 2,
+    });
     subhead.rect.x = centerX(content, subhead.rect.width);
     subhead.rect.y = headline.rect.y + headline.rect.height + gapFor(32);
     blocks.push(subhead);
   }
   if (copy.footer) {
-    const footer = buildText(ctx, 'footer', copy.footer, { size: type.body, align: 'center', width: Math.round(content.width * 0.8), color: palette.textMuted, maxLines: 2 });
+    const footer = buildText(ctx, 'footer', copy.footer, {
+      size: type.body,
+      align: 'center',
+      width: Math.round(content.width * 0.8),
+      color: palette.textMuted,
+      maxLines: 2,
+    });
     footer.rect.x = centerX(content, footer.rect.width);
     footer.rect.y = content.y + content.height - footer.rect.height - gapFor(16);
     blocks.push(footer);
@@ -509,10 +840,23 @@ function eventPoster(ctx: Ctx): LayoutPlan {
 
   const ctaText = copy.cta;
   if (ctaText) {
-    const cta = buildText(ctx, 'cta', ctaText, { size: type.cta, align: 'center', width: measureTextWidth(ctaText, type.cta) + type.cta * 2.4, color: palette.onPrimary, maxLines: 1 });
+    const cta = buildText(ctx, 'cta', ctaText, {
+      size: type.cta,
+      align: 'center',
+      width: measureTextWidth(ctaText, type.cta) + type.cta * 2.4,
+      color: palette.onPrimary,
+      maxLines: 1,
+    });
     cta.rect.x = centerX(content, cta.rect.width);
     cta.rect.y = content.y + content.height - cta.rect.height - gapFor(96);
-    shapes.push({ id: 'cta-bg', kind: 'rect', rect: { ...cta.rect }, fill: palette.primary, opacity: 1, radius: gapFor(8) });
+    shapes.push({
+      id: 'cta-bg',
+      kind: 'rect',
+      rect: { ...cta.rect },
+      fill: palette.primary,
+      opacity: 1,
+      radius: gapFor(8),
+    });
     blocks.push(cta);
   }
 
@@ -525,7 +869,13 @@ function eventPoster(ctx: Ctx): LayoutPlan {
     [content.x + content.width - cornerSize, content.y + content.height - cornerSize],
   ];
   corners.forEach(([x, y], i) => {
-    shapes.push({ id: `corner-${i}`, kind: 'rect', rect: { x, y, width: cornerSize, height: cornerSize }, fill: palette.accent, opacity: 0.9 });
+    shapes.push({
+      id: `corner-${i}`,
+      kind: 'rect',
+      rect: { x, y, width: cornerSize, height: cornerSize },
+      fill: palette.accent,
+      opacity: 0.9,
+    });
   });
 
   const logo = logoBlock(ctx);
@@ -547,26 +897,63 @@ function eventPoster(ctx: Ctx): LayoutPlan {
 function thumbnailBold(ctx: Ctx): LayoutPlan {
   const { content, palette, type, copy } = ctx;
   const width = Math.round(content.width * 0.94);
-  const headline = buildText(ctx, 'headline', copy.headline, { size: Math.round(type.display * 1.15), align: 'start', width, color: palette.text, maxLines: 2, leading: 1.12 });
+  const headline = buildText(ctx, 'headline', copy.headline, {
+    size: Math.round(type.display * 1.15),
+    align: 'start',
+    width,
+    color: palette.text,
+    maxLines: 2,
+    leading: 1.12,
+  });
   headline.rect.y = Math.round(content.y + content.height * 0.5 - headline.rect.height / 2);
 
   const blocks: PlannedText[] = [headline];
   const shapes: PlannedShape[] = [
-    { id: 'underline', kind: 'rect', rect: { x: headline.rect.x, y: headline.rect.y + headline.rect.height + gapFor(16), width: Math.round(headline.rect.width * 0.42), height: gapFor(16) }, fill: palette.accent, opacity: 1 },
+    {
+      id: 'underline',
+      kind: 'rect',
+      rect: {
+        x: headline.rect.x,
+        y: headline.rect.y + headline.rect.height + gapFor(16),
+        width: Math.round(headline.rect.width * 0.42),
+        height: gapFor(16),
+      },
+      fill: palette.accent,
+      opacity: 1,
+    },
   ];
 
   if (copy.subhead) {
-    const subhead = buildText(ctx, 'subhead', copy.subhead, { size: type.h3, align: 'start', width, color: palette.textMuted, maxLines: 1 });
+    const subhead = buildText(ctx, 'subhead', copy.subhead, {
+      size: type.h3,
+      align: 'start',
+      width,
+      color: palette.textMuted,
+      maxLines: 1,
+    });
     subhead.rect.y = headline.rect.y + headline.rect.height + gapFor(56);
     blocks.push(subhead);
   }
 
   const ctaText = copy.cta;
   if (ctaText) {
-    const cta = buildText(ctx, 'cta', ctaText, { size: type.cta, align: 'center', width: measureTextWidth(ctaText, type.cta) + type.cta * 2.2, color: palette.onPrimary, maxLines: 1 });
+    const cta = buildText(ctx, 'cta', ctaText, {
+      size: type.cta,
+      align: 'center',
+      width: measureTextWidth(ctaText, type.cta) + type.cta * 2.2,
+      color: palette.onPrimary,
+      maxLines: 1,
+    });
     cta.rect.x = alignRectX(content, cta.rect.width, 'end', ctx.rtl);
     cta.rect.y = content.y + content.height - cta.rect.height;
-    shapes.push({ id: 'cta-bg', kind: 'rect', rect: { ...cta.rect }, fill: palette.primary, opacity: 1, radius: gapFor(8) });
+    shapes.push({
+      id: 'cta-bg',
+      kind: 'rect',
+      rect: { ...cta.rect },
+      fill: palette.primary,
+      opacity: 1,
+      radius: gapFor(8),
+    });
     blocks.push(cta);
   }
 
@@ -589,14 +976,41 @@ function thumbnailBold(ctx: Ctx): LayoutPlan {
 function cinematicBleed(ctx: Ctx): LayoutPlan {
   const { page, content, palette, type, copy } = ctx;
   const shapes: PlannedShape[] = [
-    { id: 'image-full', kind: 'image', rect: page, fill: palette.surface, opacity: 1, gradient: { from: palette.primary, to: palette.surface, angle: 90 }, noteAr: 'صورة كاملة مع تعتيم سفلي.' },
-    { id: 'scrim', kind: 'scrim', rect: { x: 0, y: page.height * 0.42, width: page.width, height: page.height * 0.58 }, fill: palette.background, opacity: 0.88, gradient: { from: palette.background, to: palette.background, angle: 90 } },
+    {
+      id: 'image-full',
+      kind: 'image',
+      rect: page,
+      fill: palette.surface,
+      opacity: 1,
+      gradient: { from: palette.primary, to: palette.surface, angle: 90 },
+      noteAr: 'صورة كاملة مع تعتيم سفلي.',
+    },
+    {
+      id: 'scrim',
+      kind: 'scrim',
+      rect: { x: 0, y: page.height * 0.42, width: page.width, height: page.height * 0.58 },
+      fill: palette.background,
+      opacity: 0.88,
+      gradient: { from: palette.background, to: palette.background, angle: 90 },
+    },
   ];
 
   const width = Math.round(content.width * 0.9);
-  const headline = buildText(ctx, 'headline', copy.headline, { size: type.display, align: 'start', width, color: palette.text, maxLines: 3 });
+  const headline = buildText(ctx, 'headline', copy.headline, {
+    size: type.display,
+    align: 'start',
+    width,
+    color: palette.text,
+    maxLines: 3,
+  });
   const subhead = copy.subhead
-    ? buildText(ctx, 'subhead', copy.subhead, { size: type.h3, align: 'start', width, color: palette.textMuted, maxLines: 2 })
+    ? buildText(ctx, 'subhead', copy.subhead, {
+        size: type.h3,
+        align: 'start',
+        width,
+        color: palette.textMuted,
+        maxLines: 2,
+      })
     : undefined;
 
   const blocks: PlannedText[] = [headline];
@@ -605,16 +1019,35 @@ function cinematicBleed(ctx: Ctx): LayoutPlan {
   const footerY = content.y + content.height;
   let cursor = footerY;
   if (copy.cta) {
-    const cta = buildText(ctx, 'cta', copy.cta, { size: type.cta, align: 'center', width: measureTextWidth(copy.cta, type.cta) + type.cta * 2.4, color: palette.onPrimary, maxLines: 1 });
+    const cta = buildText(ctx, 'cta', copy.cta, {
+      size: type.cta,
+      align: 'center',
+      width: measureTextWidth(copy.cta, type.cta) + type.cta * 2.4,
+      color: palette.onPrimary,
+      maxLines: 1,
+    });
     cursor -= cta.rect.height;
     cta.rect.y = Math.round(cursor);
     cta.rect.x = alignRectX(content, cta.rect.width, 'start', ctx.rtl);
-    shapes.push({ id: 'cta-bg', kind: 'rect', rect: { ...cta.rect }, fill: palette.primary, opacity: 1, radius: gapFor(8) });
+    shapes.push({
+      id: 'cta-bg',
+      kind: 'rect',
+      rect: { ...cta.rect },
+      fill: palette.primary,
+      opacity: 1,
+      radius: gapFor(8),
+    });
     blocks.push(cta);
     cursor -= gapFor(32);
   }
   if (copy.footer) {
-    const footer = buildText(ctx, 'footer', copy.footer, { size: type.caption, align: 'start', width, color: palette.textMuted, maxLines: 1 });
+    const footer = buildText(ctx, 'footer', copy.footer, {
+      size: type.caption,
+      align: 'start',
+      width,
+      color: palette.textMuted,
+      maxLines: 1,
+    });
     cursor -= footer.rect.height;
     footer.rect.y = Math.round(cursor);
     blocks.push(footer);
@@ -643,8 +1076,25 @@ function storyStack(ctx: Ctx): LayoutPlan {
   const { content, palette, type, copy } = ctx;
   const blocks: PlannedText[] = [];
   const shapes: PlannedShape[] = [
-    { id: 'progress-track', kind: 'rect', rect: { x: content.x, y: content.y, width: content.width, height: 4 }, fill: palette.border, opacity: 0.6 },
-    { id: 'progress', kind: 'rect', rect: { x: ctx.rtl ? content.x + content.width * 0.66 : content.x, y: content.y, width: content.width * 0.34, height: 4 }, fill: palette.accent, opacity: 1 },
+    {
+      id: 'progress-track',
+      kind: 'rect',
+      rect: { x: content.x, y: content.y, width: content.width, height: 4 },
+      fill: palette.border,
+      opacity: 0.6,
+    },
+    {
+      id: 'progress',
+      kind: 'rect',
+      rect: {
+        x: ctx.rtl ? content.x + content.width * 0.66 : content.x,
+        y: content.y,
+        width: content.width * 0.34,
+        height: 4,
+      },
+      fill: palette.accent,
+      opacity: 1,
+    },
   ];
 
   const logo = logoBlock(ctx);
@@ -653,9 +1103,21 @@ function storyStack(ctx: Ctx): LayoutPlan {
   blocks.push(logo);
 
   const width = content.width;
-  const headline = buildText(ctx, 'headline', copy.headline, { size: Math.round(type.h1 * 1.05), align: 'start', width, color: palette.text, maxLines: 4 });
+  const headline = buildText(ctx, 'headline', copy.headline, {
+    size: Math.round(type.h1 * 1.05),
+    align: 'start',
+    width,
+    color: palette.text,
+    maxLines: 4,
+  });
   const subhead = copy.subhead
-    ? buildText(ctx, 'subhead', copy.subhead, { size: type.h3, align: 'start', width, color: palette.textMuted, maxLines: 2 })
+    ? buildText(ctx, 'subhead', copy.subhead, {
+        size: type.h3,
+        align: 'start',
+        width,
+        color: palette.textMuted,
+        maxLines: 2,
+      })
     : undefined;
 
   const group = [headline, ...(subhead ? [subhead] : [])];
@@ -664,14 +1126,34 @@ function storyStack(ctx: Ctx): LayoutPlan {
   blocks.push(...group);
 
   if (copy.cta) {
-    const cta = buildText(ctx, 'cta', copy.cta, { size: type.cta, align: 'center', width: content.width * 0.7, color: palette.onPrimary, maxLines: 1 });
+    const cta = buildText(ctx, 'cta', copy.cta, {
+      size: type.cta,
+      align: 'center',
+      width: content.width * 0.7,
+      color: palette.onPrimary,
+      maxLines: 1,
+    });
     cta.rect.x = centerX(content, cta.rect.width);
-    cta.rect.y = content.y + content.height - cta.rect.height - (copy.footer ? type.caption * 2.4 : 0);
-    shapes.push({ id: 'cta-bg', kind: 'rect', rect: { ...cta.rect }, fill: palette.primary, opacity: 1, radius: gapFor(8) });
+    cta.rect.y =
+      content.y + content.height - cta.rect.height - (copy.footer ? type.caption * 2.4 : 0);
+    shapes.push({
+      id: 'cta-bg',
+      kind: 'rect',
+      rect: { ...cta.rect },
+      fill: palette.primary,
+      opacity: 1,
+      radius: gapFor(8),
+    });
     blocks.push(cta);
   }
   if (copy.footer) {
-    const footer = buildText(ctx, 'footer', copy.footer, { size: type.caption, align: 'center', width: content.width, color: palette.textMuted, maxLines: 1 });
+    const footer = buildText(ctx, 'footer', copy.footer, {
+      size: type.caption,
+      align: 'center',
+      width: content.width,
+      color: palette.textMuted,
+      maxLines: 1,
+    });
     footer.rect.x = centerX(content, footer.rect.width);
     footer.rect.y = content.y + content.height - footer.rect.height;
     blocks.push(footer);
@@ -692,35 +1174,72 @@ function magazineCover(ctx: Ctx): LayoutPlan {
   const { content, palette, type, copy } = ctx;
   const blocks: PlannedText[] = [];
 
-  const masthead = buildText(ctx, 'logo', copy.logo ?? 'مبدع', { size: Math.round(type.h2 * 1.15), align: 'start', width: content.width, color: palette.text, weight: 'bold', maxLines: 1 });
+  const masthead = buildText(ctx, 'logo', copy.logo ?? 'مبدع', {
+    size: Math.round(type.h2 * 1.15),
+    align: 'start',
+    width: content.width,
+    color: palette.text,
+    weight: 'bold',
+    maxLines: 1,
+  });
   masthead.rect.y = content.y;
   blocks.push(masthead);
 
   const ruleY = masthead.rect.y + masthead.rect.height + gapFor(16);
   const shapes: PlannedShape[] = [
-    { id: 'masthead-rule', kind: 'line', rect: { x: content.x, y: ruleY, width: content.width, height: 3 }, fill: palette.accent, opacity: 1 },
+    {
+      id: 'masthead-rule',
+      kind: 'line',
+      rect: { x: content.x, y: ruleY, width: content.width, height: 3 },
+      fill: palette.accent,
+      opacity: 1,
+    },
   ];
 
   const width = Math.round(content.width * 0.66);
-  const headline = buildText(ctx, 'headline', copy.headline, { size: type.h1, align: 'start', width, color: palette.text, maxLines: 3 });
+  const headline = buildText(ctx, 'headline', copy.headline, {
+    size: type.h1,
+    align: 'start',
+    width,
+    color: palette.text,
+    maxLines: 3,
+  });
   headline.rect.y = ruleY + gapFor(48);
   blocks.push(headline);
 
   if (copy.body) {
-    const body = buildText(ctx, 'body', copy.body, { size: type.body, align: 'start', width, color: palette.textMuted, maxLines: 3 });
+    const body = buildText(ctx, 'body', copy.body, {
+      size: type.body,
+      align: 'start',
+      width,
+      color: palette.textMuted,
+      maxLines: 3,
+    });
     body.rect.y = headline.rect.y + headline.rect.height + gapFor(24);
     blocks.push(body);
   }
 
   if (copy.footer) {
-    const footer = buildText(ctx, 'footer', copy.footer, { size: type.caption, align: 'start', width: content.width, color: palette.textMuted, maxLines: 1 });
+    const footer = buildText(ctx, 'footer', copy.footer, {
+      size: type.caption,
+      align: 'start',
+      width: content.width,
+      color: palette.textMuted,
+      maxLines: 1,
+    });
     footer.rect.y = content.y + content.height - footer.rect.height;
     blocks.push(footer);
   }
 
   // Cover lines on the opposite side, small and stacked.
   if (copy.subhead) {
-    const cover = buildText(ctx, 'subhead', copy.subhead, { size: type.caption, align: 'start', width: Math.round(content.width * 0.26), color: palette.accent, maxLines: 3 });
+    const cover = buildText(ctx, 'subhead', copy.subhead, {
+      size: type.caption,
+      align: 'start',
+      width: Math.round(content.width * 0.26),
+      color: palette.accent,
+      maxLines: 3,
+    });
     cover.rect.x = alignRectX(content, cover.rect.width, 'end', ctx.rtl);
     cover.rect.y = headline.rect.y + gapFor(24);
     blocks.push(cover);
@@ -733,24 +1252,47 @@ function magazineCover(ctx: Ctx): LayoutPlan {
     blocks,
     shapes,
     readingFlow: 'rtl-z',
-    focal: { x: headline.rect.x + headline.rect.width * 0.5, y: headline.rect.y + headline.rect.height * 0.4 },
+    focal: {
+      x: headline.rect.x + headline.rect.width * 0.5,
+      y: headline.rect.y + headline.rect.height * 0.4,
+    },
   };
 }
 
 function quoteCard(ctx: Ctx): LayoutPlan {
   const { content, palette, type, copy } = ctx;
   const width = Math.round(content.width * 0.84);
-  const quote = buildText(ctx, 'headline', copy.headline, { size: type.h2, align: 'center', width, color: palette.text, maxLines: 5, leading: 1.45 });
+  const quote = buildText(ctx, 'headline', copy.headline, {
+    size: type.h2,
+    align: 'center',
+    width,
+    color: palette.text,
+    maxLines: 5,
+    leading: 1.45,
+  });
   quote.rect.x = centerX(content, width);
   quote.rect.y = Math.round(content.y + content.height * 0.47 - quote.rect.height / 2);
 
   const blocks: PlannedText[] = [quote];
   const shapes: PlannedShape[] = [
-    { id: 'quote-mark', kind: 'rect', rect: { x: centerX(content, 64), y: quote.rect.y - gapFor(64), width: 64, height: 64 }, fill: palette.accent, opacity: 1, radius: 32 },
+    {
+      id: 'quote-mark',
+      kind: 'rect',
+      rect: { x: centerX(content, 64), y: quote.rect.y - gapFor(64), width: 64, height: 64 },
+      fill: palette.accent,
+      opacity: 1,
+      radius: 32,
+    },
   ];
 
   if (copy.footer) {
-    const footer = buildText(ctx, 'footer', copy.footer, { size: type.body, align: 'center', width, color: palette.textMuted, maxLines: 2 });
+    const footer = buildText(ctx, 'footer', copy.footer, {
+      size: type.body,
+      align: 'center',
+      width,
+      color: palette.textMuted,
+      maxLines: 2,
+    });
     footer.rect.x = centerX(content, width);
     footer.rect.y = quote.rect.y + quote.rect.height + gapFor(48);
     blocks.push(footer);

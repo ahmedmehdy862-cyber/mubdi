@@ -12,14 +12,21 @@ let activeIndex = 0;
     const b = await window.mubdi.getBrand();
     document.querySelector('header h1').textContent = b.studioName + ' — ' + b.sectionSocial;
     document.title = b.studioName + ' — ' + b.sectionSocial;
-  } catch {}
+  } catch {
+    /* brand header is optional */
+  }
   try {
     const t = await window.mubdi.detectTools();
-    document.querySelector('.badge').textContent = `Photoshop: ${t.photoshop ? '✓' : '✗'} | Illustrator: ${t.illustrator ? '✓' : '✗'} | ImageMagick: ✓`;
-  } catch {}
+    document.querySelector('.badge').textContent =
+      `Photoshop: ${t.photoshop ? '✓' : '✗'} | Illustrator: ${t.illustrator ? '✓' : '✗'} | ImageMagick: ✓`;
+  } catch {
+    /* tool detection is optional */
+  }
 })();
 
-function setStatus(msg) { status.textContent = msg; }
+function setStatus(msg) {
+  status.textContent = msg;
+}
 
 document.getElementById('generate').addEventListener('click', async () => {
   const prompt = document.getElementById('prompt').value;
@@ -31,7 +38,9 @@ document.getElementById('generate').addEventListener('click', async () => {
     currentVariants = await window.mubdi.generateVariants(currentBrief, presetId);
     activeIndex = 0;
     renderVariants();
-    setStatus(`تم توليد ${currentVariants.length} اتجاهات فنية — ${currentVariants[0].directionNameAr} ${currentVariants[0].score}/100`);
+    setStatus(
+      `تم توليد ${currentVariants.length} اتجاهات فنية — ${currentVariants[0].directionNameAr} ${currentVariants[0].score}/100`,
+    );
   } catch (e) {
     setStatus('خطأ: ' + (e && e.message ? e.message : e));
   }
@@ -39,7 +48,9 @@ document.getElementById('generate').addEventListener('click', async () => {
 
 function selectVariant(index) {
   activeIndex = index;
-  document.querySelectorAll('.variant').forEach((el, i) => el.classList.toggle('active', i === index));
+  document
+    .querySelectorAll('.variant')
+    .forEach((el, i) => el.classList.toggle('active', i === index));
   const variant = currentVariants[index];
   if (!variant) return;
   renderLayers(variant.spec);
@@ -155,5 +166,7 @@ function renderVariants() {
 }
 
 function renderLayers(spec) {
-  layersEl.innerHTML = '<strong>الطبقات:</strong><br/>' + (spec.layers || []).map((l) => `${l.name} (${l.type})`).join('<br/>');
+  layersEl.innerHTML =
+    '<strong>الطبقات:</strong><br/>' +
+    (spec.layers || []).map((l) => `${l.name} (${l.type})`).join('<br/>');
 }

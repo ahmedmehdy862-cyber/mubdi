@@ -1,7 +1,12 @@
 import type { Color, DesignBrief, DesignSpec, Layer } from '@mubdi/schemas';
-import { evaluateDesign, effectiveBackground, type Evaluation, type RubricPreset } from './rubric.js';
+import {
+  evaluateDesign,
+  effectiveBackground,
+  type Evaluation,
+  type RubricPreset,
+} from './rubric.js';
 import { contrastHex, ensureContrast, hexToRgb, requiredContrast } from './color.js';
-import { snap, SPACING_SCALE } from './grid.js';
+import { SPACING_SCALE } from './grid.js';
 
 /**
  * Iterative auto-fix.
@@ -41,7 +46,10 @@ function clone(spec: DesignSpec): DesignSpec {
 }
 
 function toHex(color: Color): string {
-  const to = (v: number): string => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  const to = (v: number): string =>
+    Math.max(0, Math.min(255, Math.round(v)))
+      .toString(16)
+      .padStart(2, '0');
   return `#${to(color.r)}${to(color.g)}${to(color.b)}`;
 }
 
@@ -84,7 +92,9 @@ function fixContrast(spec: DesignSpec, actions: string[]): void {
     if (ratio >= need) continue;
     const fixed = ensureContrast(fg, bg, need);
     run.color = fromHex(fixed);
-    actions.push(`ضبط تباين «${layer.name}» من ${ratio}:1 إلى ${requiredContrast(run.size, run.bold)}:1`);
+    actions.push(
+      `ضبط تباين «${layer.name}» من ${ratio}:1 إلى ${requiredContrast(run.size, run.bold)}:1`,
+    );
   }
 }
 
@@ -125,7 +135,9 @@ function fixHierarchy(spec: DesignSpec, preset: RubricPreset, actions: string[])
   const texts = textLayers(spec).filter((l) => l.name !== 'LOGO');
   const headline = texts.find((l) => l.name === 'HEADLINE');
   if (!headline || texts.length < 2) return;
-  const others = texts.filter((l) => l !== headline).sort((a, b) => (b.textRuns![0]!.size ?? 0) - (a.textRuns![0]!.size ?? 0));
+  const others = texts
+    .filter((l) => l !== headline)
+    .sort((a, b) => (b.textRuns![0]!.size ?? 0) - (a.textRuns![0]!.size ?? 0));
   const maxOther = others[0]?.textRuns?.[0]?.size ?? 0;
   const headlineRun = headline.textRuns![0]!;
   if (maxOther > 0 && headlineRun.size < maxOther * 2) {
@@ -155,7 +167,10 @@ function fixSpacing(spec: DesignSpec, actions: string[]): void {
     const next = sorted[i]!;
     const gap = next.y - (prev.y + prev.height);
     if (gap < 0) continue;
-    const nearest = SPACING_SCALE.reduce((best, s) => (Math.abs(s - gap) < Math.abs(best - gap) ? s : best), 0);
+    const nearest = SPACING_SCALE.reduce(
+      (best, s) => (Math.abs(s - gap) < Math.abs(best - gap) ? s : best),
+      0,
+    );
     const dy = nearest - gap;
     if (Math.abs(dy) > 0 && Math.abs(dy) <= 6) {
       next.y += dy;
@@ -166,7 +181,12 @@ function fixSpacing(spec: DesignSpec, actions: string[]): void {
 }
 
 /** Nudge edges that are almost aligned onto the grid or the margin. */
-function fixAlignment(spec: DesignSpec, brief: DesignBrief, preset: RubricPreset, actions: string[]): void {
+function fixAlignment(
+  spec: DesignSpec,
+  brief: DesignBrief,
+  preset: RubricPreset,
+  actions: string[],
+): void {
   const rtl = brief.direction !== 'ltr';
   const margins = marginsOf(spec, preset);
   const content = {
@@ -182,7 +202,9 @@ function fixAlignment(spec: DesignSpec, brief: DesignBrief, preset: RubricPreset
       if (x >= 0 && x + layer.width <= spec.canvas.width) {
         layer.x = x;
         shiftedPartner(spec, layer, 0);
-        const shape = spec.layers.find((l) => l.name === 'CTA-bg' && Math.abs(l.y - layer.y) < layer.height);
+        const shape = spec.layers.find(
+          (l) => l.name === 'CTA-bg' && Math.abs(l.y - layer.y) < layer.height,
+        );
         if (shape) shape.x = x;
         actions.push(`محاذاة «${layer.name}» على هامش المحتوى`);
       }
@@ -218,7 +240,9 @@ function fixSafeZones(spec: DesignSpec, preset: RubricPreset, actions: string[])
   }
 }
 
-const ACTION_FIXERS: Array<(spec: DesignSpec, brief: DesignBrief, preset: RubricPreset, actions: string[]) => void> = [
+const ACTION_FIXERS: Array<
+  (spec: DesignSpec, brief: DesignBrief, preset: RubricPreset, actions: string[]) => void
+> = [
   (spec, _brief, _preset, actions) => fixContrast(spec, actions),
   (spec, _brief, _preset, actions) => fixArabicTracking(spec, actions),
   (spec, _brief, preset, actions) => fixTypeFloor(spec, preset, actions),
