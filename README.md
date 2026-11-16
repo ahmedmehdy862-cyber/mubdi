@@ -3,6 +3,8 @@
 Desktop AI design studio. Section 1: Social Media Designs.
 Arabic/English prompt → 3 editable, layered PSD variants → conversational editing → Photoshop/Illustrator round-trip.
 
+**Download (Windows, portable):** [Mubdi-win32.zip](https://github.com/ahmedmehdy862-cyber/mubdi/releases/latest) — unzip and run `Mubdi.exe`; no install and no network required.
+
 ## What it does
 
 - **Prompt → Brief → Spec → 3 variants.** A deterministic Tier 1 engine always works, with no Photoshop, LLM, or network required.
