@@ -107,6 +107,16 @@ PNG previews, PSD export → re-import → merge, and the auto-fix path.
 - [`docs/discovery-report.md`](docs/discovery-report.md) — Phase 0 decisions & evidence.
 - [`docs/security/threat-model.md`](docs/security/threat-model.md) — STRIDE threat model.
 
+## Known limitations
+
+- The rubric measures geometry, colour and typography — not pixel content. Photo
+  quality, faces and composition inside an image are out of scope for now.
+- Scores describe execution of the supplied brief: a clean, deliberately minimal
+  brief can reach 100 without more content.
+- PSDs carry live text, shapes and groups but no flattened composite preview;
+  Photoshop may ask to maximise compatibility on open.
+- Illustrator export and advanced Photoshop scripting remain optional adapters.
+
 ## License
 
 TBD.
