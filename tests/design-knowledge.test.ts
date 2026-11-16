@@ -6,6 +6,7 @@ import {
   ART_DIRECTIONS,
   buildPalette,
   checkHierarchy,
+  coach,
   contrastHex,
   ensureContrast,
   evaluateDesign,
@@ -136,6 +137,14 @@ describe('rubric', () => {
     expect(evaluation.metrics.colorCount).toBeGreaterThanOrEqual(2);
     expect(evaluation.metrics.colorCount).toBeLessThanOrEqual(5);
     expect(evaluation.findings.some((f) => f.id === 'color.count')).toBe(false);
+  });
+
+  it('advises a supporting line when the design carries only a headline', () => {
+    const minimal = parseBrief('تصميم بوست انستجرام لحملة تشجير');
+    const spec = generateSpec(minimal, 'ig_post_4x5', 0);
+    const evaluation = evaluateDesign(spec, minimal, resolvePreset(spec));
+    const report = coach(evaluation, minimal);
+    expect(report.nextStepsAr.join(' ')).toContain('سطراً مسانداً');
   });
 });
 

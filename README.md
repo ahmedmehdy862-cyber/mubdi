@@ -76,7 +76,7 @@ Full curriculum, thresholds, and extension guide: [`docs/design-intelligence.md`
 
 ## Tests
 
-`pnpm test:unit` runs 6 suites / 39 tests, including the design-knowledge suite
+`pnpm test:unit` runs 6 suites / 40 tests, including the design-knowledge suite
 (palette contrast, type floor, RTL grid, hierarchy, measured composition,
 good-vs-broken rubric comparison, ink-density, colour counting, auto-fix, variant
 diversity, brand logo, knowledge snapshot, creativity).

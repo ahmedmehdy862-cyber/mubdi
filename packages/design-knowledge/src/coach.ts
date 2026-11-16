@@ -75,13 +75,13 @@ function metricsOf(evaluation: Evaluation): CoachMetric[] {
     {
       labelAr: 'تباين التسلسل الطباعي',
       valueAr: `${m.hierarchyRatio}×`,
-      thresholdAr: '2–4×',
+      thresholdAr: '≥ 2×',
       good: m.hierarchyRatio >= 2 && m.hierarchyRatio <= 4.5,
     },
     {
       labelAr: 'مستويات الخط',
       valueAr: `${m.hierarchyLevels}`,
-      thresholdAr: '3–4',
+      thresholdAr: '2–4',
       good: m.hierarchyLevels >= 2 && m.hierarchyLevels <= 4,
     },
     {
@@ -138,6 +138,9 @@ function nextSteps(evaluation: Evaluation, brief: DesignBrief): string[] {
   if (second) steps.push(second.fixAr);
   if (evaluation.metrics.density > 0.4) {
     steps.push('اختصر النص: عنوان ≤ 7 كلمات، ونص مساند ≤ سطرين.');
+  }
+  if (evaluation.metrics.hierarchyLevels <= 2) {
+    steps.push('إذا توفرت تفاصيل (موعد/مكان/فائدة) أضف سطراً مسانداً — التصميم الحالي بعنوان واحد.');
   }
   if (evaluation.score >= 90) {
     steps.push('التصميم جاهز للنشر — صدّر PSD وراجع الطبقات قبل التسليم.');
