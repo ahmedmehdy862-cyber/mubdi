@@ -24,15 +24,20 @@ interface Row {
   pixelFlags: string[];
   gaps: string[];
   escalated: boolean;
+  contentComplete: boolean[];
+  placeholdersAr: string[];
 }
 
 const rows: Row[] = [];
 let rawPass = 0;
 let loopPass = 0;
 let escalations = 0;
+let contentCompleteCount = 0;
 
 for (const g of GOLDEN_SET) {
-  const brief = core.parseBrief(g.prompt);
+  const parsed = core.parseBrief(g.prompt);
+  // Q2: every brief is expanded into a full Content Pack before generation.
+  const { brief, pack } = core.expandBrief(parsed, { prompt: g.prompt, brandName: 'مبدع' });
   const variants = core.generateVariantSet(brief, g.presetId, { name: 'مبدع' });
   const specs = variants.map((v) => v.spec);
 
@@ -69,6 +74,14 @@ for (const g of GOLDEN_SET) {
     })
     .filter(Boolean);
 
+  const contentComplete = loopReviews.map((r) =>
+    Object.values(r.specEvaluation.metrics.contentChecks).every(Boolean),
+  );
+  contentCompleteCount += contentComplete.filter(Boolean).length;
+  const placeholdersAr = pack.details
+    .filter((d) => d.isPlaceholder)
+    .map((d) => `${d.labelAr}: ${d.value}`);
+
   rows.push({
     id: g.id,
     rawScores: rawReviews.map((r) => r.score),
@@ -76,9 +89,11 @@ for (const g of GOLDEN_SET) {
     pixelFlags,
     gaps: rawReviews[0]!.gapsAr.slice(0, 2),
     escalated,
+    contentComplete,
+    placeholdersAr,
   });
   console.log(
-    `${g.id} raw=[${rawReviews.map((r) => r.score)}] loop=[${loopReviews.map((r) => r.score)}] ${escalated ? 'ESCALATED' : ''}`,
+    `${g.id} raw=[${rawReviews.map((r) => r.score)}] loop=[${loopReviews.map((r) => r.score)}] content=${contentComplete.filter(Boolean).length}/3 ${escalated ? 'ESCALATED' : ''}`,
   );
 }
 
@@ -120,6 +135,10 @@ md.push(
 );
 md.push(
   `- بعد الحلقة: متوسط ${summary.loop.mean}، نجح ${summary.loop.passing}/${summary.loop.of}.`,
+);
+md.push(`- بوابة المحتوى مكتملة (Q2): ${contentCompleteCount}/${rows.length * 3} نسخة.`);
+md.push(
+  `- Placeholders صريحة للمفقود: مثال g01 → ${rows[0]!.placeholdersAr.length} حقول قابلة للتحرير.`,
 );
 md.push(`- تدرّج لإعادة التوليد بقالب مختلف: ${escalations}/${rows.length} توجيهاً.`);
 fs.writeFileSync(path.join(OUT, 'scorecard.md'), md.join('\n'));

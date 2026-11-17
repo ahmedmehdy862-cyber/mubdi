@@ -48,6 +48,154 @@ export interface LayoutPlan {
   focal: { x: number; y: number };
 }
 
+/**
+ * Q2 guarantee: no archetype may silently drop content-pack rows. If the
+ * chosen layout omitted the body rows (details) or the contact footer, they
+ * are inserted into the largest free vertical band of the plan — every
+ * template added in Q3 inherits this contract for free.
+ */
+export function ensureContentSlots(
+  plan: LayoutPlan,
+  copy: ComposeCopy,
+  ctx: {
+    content: Rect;
+    type: TypeScale;
+    rtl: boolean;
+    textColor: string;
+    mutedColor: string;
+    /** Pill fill for a synthesised CTA (defaults to textColour-free onPill contrast). */
+    pillColor?: string;
+  },
+): PlannedText[] {
+  const added: PlannedText[] = [];
+  const addedShapes: PlannedShape[] = [];
+  const has = (role: TextRole) => plan.blocks.some((b) => b.role === role);
+
+  const mkBlock = (
+    role: TextRole,
+    text: string,
+    size: number,
+    weight: 'regular' | 'bold',
+    color: string,
+    top: number,
+    height: number,
+  ): PlannedText => ({
+    role,
+    text,
+    lines: text.split('\n'),
+    rect: {
+      x: ctx.content.x,
+      y: Math.round(top),
+      width: ctx.content.width,
+      height: Math.round(height),
+    },
+    align: 'start',
+    size,
+    leading: 1.5,
+    weight,
+    color,
+    track: 0,
+  });
+
+  /* --- contact / hashtags footer: pin the bottom strip FIRST so the CTA
+         and body rows never collide with it --- */
+  const footerSize = ctx.type.caption;
+  const footerNeeded = footerSize * 2;
+  const footerTop = ctx.content.y + ctx.content.height - footerNeeded - 8;
+  const footerTops: Array<{ top: number; bottom: number }> = [];
+  if (copy.footer && !has('footer')) {
+    added.push(
+      mkBlock('footer', copy.footer, footerSize, 'regular', ctx.textColor, footerTop, footerNeeded),
+    );
+    footerTops.push({ top: footerTop, bottom: footerTop + footerNeeded });
+  }
+
+  /* --- CTA pill (for archetypes that omit calls to action) --- */
+  const ctaBlocked: Array<{ top: number; bottom: number }> = [];
+  if (copy.cta && !has('cta')) {
+    const pillHeight = Math.max(64, Math.round(ctx.type.body * 2));
+    const pillWidth = Math.min(ctx.content.width * 0.62, pillHeight * 4.4);
+    const pillX = ctx.rtl ? ctx.content.x + ctx.content.width - pillWidth : ctx.content.x;
+    const pillTop = footerTop - pillHeight - 24;
+    if (pillTop > ctx.content.y + 80) {
+      addedShapes.push({
+        id: 'cta-bg',
+        kind: 'rect',
+        rect: {
+          x: pillX,
+          y: Math.round(pillTop),
+          width: Math.round(pillWidth),
+          height: pillHeight,
+        },
+        fill: ctx.pillColor ?? ctx.textColor,
+        opacity: 1,
+        radius: Math.round(pillHeight / 2),
+      });
+      added.push(
+        mkBlock(
+          'cta',
+          copy.cta,
+          Math.round(ctx.type.body * 0.9),
+          'bold',
+          ctx.textColor,
+          pillTop + (pillHeight - Math.round(ctx.type.body * 0.9)) / 2,
+          Math.round(ctx.type.body * 1.4),
+        ),
+      );
+      ctaBlocked.push({ top: pillTop, bottom: pillTop + pillHeight });
+    }
+  }
+
+  /* --- supporting line (subhead) for quote-style layouts --- */
+  const subBlocked: Array<{ top: number; bottom: number }> = [];
+  if (copy.subhead && !has('subhead')) {
+    const size = Math.round(ctx.type.body * 0.95);
+    const needed = size * 1.9;
+    const top =
+      footerTop - needed - 24 - (ctaBlocked.length ? ctaBlocked[0]!.bottom - footerTop : 0);
+    if (top > ctx.content.y + 120) {
+      added.push(mkBlock('subhead', copy.subhead, size, 'regular', ctx.mutedColor, top, needed));
+      subBlocked.push({ top, bottom: top + needed });
+    }
+  }
+
+  const blocked = footerTops
+    .concat(ctaBlocked, subBlocked)
+    .concat(plan.blocks.map((b) => ({ top: b.rect.y, bottom: b.rect.y + b.rect.height })))
+    .sort((a, b) => a.top - b.top);
+  const gaps: Array<{ top: number; bottom: number }> = [];
+  let cursor = ctx.content.y;
+  for (const span of blocked) {
+    if (span.top - cursor >= 40) gaps.push({ top: cursor, bottom: span.top });
+    cursor = Math.max(cursor, span.bottom);
+  }
+  if (ctx.content.y + ctx.content.height - cursor - 40 >= 40) {
+    gaps.push({ top: cursor, bottom: ctx.content.y + ctx.content.height - 40 });
+  }
+  const fit = (needed: number) =>
+    gaps
+      .filter((g) => g.bottom - g.top >= needed)
+      .sort((a, b) => b.bottom - b.top - (a.bottom - a.top))[0];
+
+  /* --- body rows (details) --- */
+  if (copy.body && !has('body')) {
+    const lines = copy.body.split('\n').filter(Boolean);
+    const size = ctx.type.body;
+    const needed = lines.length * size * 1.5;
+    const gap = fit(needed);
+    if (gap) {
+      const top = gap.bottom - needed;
+      added.unshift(
+        mkBlock('body', lines.join('\n'), size, 'regular', ctx.mutedColor, top, needed),
+      );
+    }
+  }
+
+  plan.blocks.push(...added);
+  plan.shapes.push(...addedShapes);
+  return added;
+}
+
 export interface ComposeCopy {
   eyebrow?: string;
   headline: string;

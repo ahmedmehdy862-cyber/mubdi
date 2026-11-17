@@ -6,6 +6,7 @@ import {
   chooseArchetype,
   compose,
   ensureContrast,
+  ensureContentSlots,
   FONT_PAIRINGS,
   getDirection,
   hexToRgb,
@@ -368,6 +369,28 @@ export function generateVariantDetails(
     rtl,
     variant,
     archetype,
+  });
+
+  // Q2 contract: content-pack details and the contact strip survive whatever
+  // archetype was selected — inserted into a free band when missing.
+  const copyFinal = buildCopy(brief, brand);
+  const marginX = preset.margins ?? Math.round(Math.min(preset.width, preset.height) * 0.06);
+  ensureContentSlots(plan, copyFinal, {
+    content: {
+      x: marginX,
+      y: Math.max(marginX, preset.safeZones.top),
+      width: preset.width - marginX * 2,
+      height:
+        preset.height -
+        marginX * 2 -
+        Math.max(marginX, preset.safeZones.top) -
+        Math.max(marginX, preset.safeZones.bottom),
+    },
+    type,
+    rtl,
+    textColor: palette.text,
+    mutedColor: palette.textMuted,
+    pillColor: palette.primary,
   });
 
   const layers: Layer[] = [];

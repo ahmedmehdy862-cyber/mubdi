@@ -6,6 +6,7 @@ export * from './captions';
 export * from './pipeline';
 export * from './merge';
 export * from './calibrated';
+export * from './content';
 export {
   coach,
   evaluateDesign,

@@ -11,6 +11,9 @@
     "@mubdi/schemas": "workspace:*",
     "zod": "^4.1.0"
   },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
