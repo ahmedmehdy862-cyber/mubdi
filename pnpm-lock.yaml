@@ -114,6 +114,9 @@ importers:
       '@mubdi/design-knowledge':
         specifier: workspace:*
         version: link:../design-knowledge
+      '@mubdi/renderer':
+        specifier: workspace:*
+        version: link:../renderer
       '@mubdi/schemas':
         specifier: workspace:*
         version: link:../schemas

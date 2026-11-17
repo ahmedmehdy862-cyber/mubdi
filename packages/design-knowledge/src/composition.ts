@@ -860,23 +860,9 @@ function eventPoster(ctx: Ctx): LayoutPlan {
     blocks.push(cta);
   }
 
-  // Corner ornaments: four small squares, borrowed from print posters.
-  const cornerSize = gapFor(24);
-  const corners: Array<[number, number]> = [
-    [content.x, content.y],
-    [content.x + content.width - cornerSize, content.y],
-    [content.x, content.y + content.height - cornerSize],
-    [content.x + content.width - cornerSize, content.y + content.height - cornerSize],
-  ];
-  corners.forEach(([x, y], i) => {
-    shapes.push({
-      id: `corner-${i}`,
-      kind: 'rect',
-      rect: { x, y, width: cornerSize, height: cornerSize },
-      fill: palette.accent,
-      opacity: 0.9,
-    });
-  });
+  // NOTE: no corner ornaments — four small squares in the corners read as
+  // selection/debug handles (flagged by the calibrated critic and absent from
+  // all 61 approved references). Frames/decoration belong to the template DSL.
 
   const logo = logoBlock(ctx);
   logo.rect.x = centerX(content, logo.rect.width + 60);

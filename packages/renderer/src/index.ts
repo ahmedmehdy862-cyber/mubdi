@@ -40,7 +40,14 @@ function fontFamily(font: string): string {
   return font.replace(/-Bold$/i, '');
 }
 
-function roundedPath(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, x: number, y: number, w: number, h: number, r: number): void {
+function roundedPath(
+  ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+): void {
   const radius = Math.max(0, Math.min(Math.min(w, h) / 2, r));
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
@@ -66,7 +73,12 @@ function linearGradient(
   const cx = layer.x + layer.width / 2;
   const cy = layer.y + layer.height / 2;
   const half = (Math.abs(dx) * layer.width + Math.abs(dy) * layer.height) / 2;
-  const g = ctx.createLinearGradient(cx - dx * half, cy - dy * half, cx + dx * half, cy + dy * half);
+  const g = ctx.createLinearGradient(
+    cx - dx * half,
+    cy - dy * half,
+    cx + dx * half,
+    cy + dy * half,
+  );
   const from = gradient.from ?? layer.fill ?? { r: 0, g: 0, b: 0, a: 1 };
   const to = gradient.to ?? layer.fill ?? { r: 255, g: 255, b: 255, a: 1 };
   g.addColorStop(0, colorCss(from));
@@ -74,7 +86,10 @@ function linearGradient(
   return g;
 }
 
-function drawPlaceholderMarks(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, layer: Layer): void {
+function drawPlaceholderMarks(
+  ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+  layer: Layer,
+): void {
   // Two quiet corner brackets signal an editable image slot without adding text.
   const size = Math.min(28, Math.min(layer.width, layer.height) * 0.12);
   const inset = Math.min(18, Math.min(layer.width, layer.height) * 0.06);
@@ -92,7 +107,10 @@ function drawPlaceholderMarks(ctx: ReturnType<ReturnType<typeof createCanvas>['g
   ctx.restore();
 }
 
-function drawShape(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, layer: Layer): void {
+function drawShape(
+  ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+  layer: Layer,
+): void {
   const info = meta(layer);
   const kind = typeof info['shape'] === 'string' ? (info['shape'] as string) : 'rect';
   const radius = typeof info['radius'] === 'number' ? (info['radius'] as number) : 0;
@@ -109,12 +127,25 @@ function drawShape(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']
   } else if (kind === 'circle') {
     ctx.fillStyle = gradient ? linearGradient(ctx, layer, gradient) : colorCss(fill);
     ctx.beginPath();
-    ctx.ellipse(x + w / 2, y + h / 2, Math.max(0.5, w / 2), Math.max(0.5, h / 2), 0, 0, Math.PI * 2);
+    ctx.ellipse(
+      x + w / 2,
+      y + h / 2,
+      Math.max(0.5, w / 2),
+      Math.max(0.5, h / 2),
+      0,
+      0,
+      Math.PI * 2,
+    );
     ctx.fill();
   } else if (kind === 'frame') {
     ctx.strokeStyle = colorCss(fill);
     ctx.lineWidth = Math.max(1.5, Math.round(Math.min(w, h) * 0.004));
-    ctx.strokeRect(x + ctx.lineWidth / 2, y + ctx.lineWidth / 2, Math.max(1, w - ctx.lineWidth), Math.max(1, h - ctx.lineWidth));
+    ctx.strokeRect(
+      x + ctx.lineWidth / 2,
+      y + ctx.lineWidth / 2,
+      Math.max(1, w - ctx.lineWidth),
+      Math.max(1, h - ctx.lineWidth),
+    );
   } else if (kind === 'image') {
     if (gradient) {
       ctx.fillStyle = linearGradient(ctx, layer, gradient);
@@ -139,11 +170,15 @@ function drawShape(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']
   ctx.restore();
 }
 
-function drawText(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, layer: Layer): void {
+function drawText(
+  ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+  layer: Layer,
+): void {
   const run = layer.textRuns?.[0];
   if (!run) return;
   const info = meta(layer);
-  const align = typeof info['align'] === 'string' ? (info['align'] as 'start' | 'center' | 'end') : 'start';
+  const align =
+    typeof info['align'] === 'string' ? (info['align'] as 'start' | 'center' | 'end') : 'start';
   const rtl = run.direction === 'rtl';
   const leading = run.leading ?? (run.size > 60 ? 1.28 : 1.55);
   const lineHeight = run.size * leading;
@@ -181,6 +216,8 @@ function drawText(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>
   ctx.restore();
 }
 
+export * from './analyze.js';
+
 export function renderSpecToPng(spec: DesignSpec): Buffer {
   const canvas = createCanvas(spec.canvas.width, spec.canvas.height);
   const ctx = canvas.getContext('2d');
@@ -188,10 +225,18 @@ export function renderSpecToPng(spec: DesignSpec): Buffer {
   ctx.fillStyle = colorCss(spec.canvas.background);
   ctx.fillRect(0, 0, spec.canvas.width, spec.canvas.height);
 
-  const sorted = [...spec.layers].filter((l) => l.visible !== false && l.type !== 'guide').sort((a, b) => a.z - b.z);
+  const sorted = [...spec.layers]
+    .filter((l) => l.visible !== false && l.type !== 'guide')
+    .sort((a, b) => a.z - b.z);
   for (const layer of sorted) {
     if (layer.type === 'text') drawText(ctx, layer);
-    else if (layer.type === 'shape' || layer.type === 'image' || layer.type === 'overlay' || layer.type === 'background') drawShape(ctx, layer);
+    else if (
+      layer.type === 'shape' ||
+      layer.type === 'image' ||
+      layer.type === 'overlay' ||
+      layer.type === 'background'
+    )
+      drawShape(ctx, layer);
   }
 
   return canvas.toBuffer('image/png');

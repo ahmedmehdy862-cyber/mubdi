@@ -925,3 +925,68 @@ export function evaluateVariantSetQuality(
 export function isFlatDesign(metrics: QualityMetrics): boolean {
   return metrics.elementCount < 5 && metrics.depthLevels <= 2;
 }
+
+/** Layers fingerprinted as selection/debug handles (corner marks). */
+export function artifactMarks(spec: DesignSpec): Layer[] {
+  const visible = spec.layers.filter((l) => l.type !== 'guide' && l.visible);
+  return [...detectArtifacts(spec, visible).marks];
+}
+
+/**
+ * Remove fingerprinted debug artifacts from a spec. Safe for already-clean
+ * specs (returns the same spec object when nothing matches).
+ */
+export function stripArtifacts(spec: DesignSpec): { spec: DesignSpec; removed: number } {
+  const marks = artifactMarks(spec);
+  if (marks.length === 0) return { spec, removed: 0 };
+  const ids = new Set(marks.map((m) => m.id));
+  return {
+    spec: { ...spec, layers: spec.layers.filter((l) => !ids.has(l.id)) },
+    removed: marks.length,
+  };
+}
+
+/**
+ * Recompute score / pass / grade / weaknesses from the current categories and
+ * findings. Used by the calibrated reviewer after appending new findings, so
+ * gates stay enforced no matter who added them.
+ */
+export function finalizeQuality(evaluation: QualityEvaluation, passGate = 80): void {
+  const weights = QUALITY_RUBRIC_WEIGHTS;
+  evaluation.score = Math.round(
+    evaluation.categories.reduce((s, c) => s + (weights[c.id] / 100) * c.score, 0),
+  );
+  const criticalCount = evaluation.findings.filter((f) => f.severity === 'critical').length;
+  const majors = evaluation.findings.filter((f) => f.severity === 'major').length;
+  const flat = evaluation.findings.some((f) => f.id === 'richness.flat' || f.id === 'pixel.flat');
+  const contentBroken =
+    !Object.values(evaluation.metrics.contentChecks).every(Boolean) &&
+    ['headline', 'cta', 'brand'].some((k) => !evaluation.metrics.contentChecks[k]);
+  if (flat) evaluation.score = Math.min(evaluation.score, 38);
+  if (contentBroken) evaluation.score = Math.min(evaluation.score, 45);
+  if (criticalCount >= 2) evaluation.score = Math.min(evaluation.score, 55);
+  else if (criticalCount === 1) evaluation.score = Math.min(evaluation.score, 62);
+  else if (majors >= 3) evaluation.score = Math.min(evaluation.score, 74);
+  evaluation.score = Math.round(evaluation.score);
+  evaluation.pass = evaluation.score >= passGate && criticalCount === 0;
+  evaluation.gradeAr =
+    evaluation.score >= 95
+      ? 'احترافي مرجعي'
+      : evaluation.score >= 85
+        ? 'احترافي'
+        : evaluation.score >= passGate
+          ? 'جيد جداً'
+          : evaluation.score >= 70
+            ? 'جيد'
+            : evaluation.score >= 55
+              ? 'ضعيف'
+              : 'مرفوض';
+  evaluation.topWeaknessesAr = [...evaluation.categories]
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 2)
+    .map((c) => `${c.nameAr} (${c.score}/100)${c.findings[0] ? ` — ${c.findings[0].fixAr}` : ''}`);
+  evaluation.summaryAr =
+    evaluation.score >= passGate
+      ? `التصميم يجتاز بوابة الجودة (${evaluation.score}/100 — ${evaluation.gradeAr}).`
+      : `التصميم لا يجتاز بوابة الجودة (${evaluation.score}/100 — ${evaluation.gradeAr}). أهم ضعفين: ${evaluation.topWeaknessesAr.join('؛ ')}.`;
+}
