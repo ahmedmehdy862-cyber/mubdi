@@ -148,7 +148,9 @@ function occupancyGrid(spec: DesignSpec, layers: Layer[]): Uint8Array {
   const cw = spec.canvas.width / GX;
   const ch = spec.canvas.height / GY;
   for (const l of layers) {
-    if (l.type === 'guide' || !l.visible) continue;
+    // the background is a surface, not content — excluding it keeps the
+    // negative-space / dead-zone measurements meaningful
+    if (l.type === 'guide' || l.type === 'background' || !l.visible) continue;
     const x0 = Math.max(0, Math.floor(l.x / cw));
     const y0 = Math.max(0, Math.floor(l.y / ch));
     const x1 = Math.min(GX - 1, Math.floor((l.x + l.width - 0.01) / cw));
@@ -793,7 +795,8 @@ export function variantSimilarity(a: DesignSpec, b: DesignSpec): number {
       diff += Math.abs((ha.get(k) ?? 0) - (hb.get(k) ?? 0));
       total += (ha.get(k) ?? 0) + (hb.get(k) ?? 0);
     }
-    return total === 0 ? 1 : diff / total;
+    // Both specs have no visible text there: identical in this dimension.
+    return total === 0 ? 0 : diff / total;
   };
   const shapeSig = (spec: DesignSpec) =>
     spec.layers
@@ -812,7 +815,8 @@ export function variantSimilarity(a: DesignSpec, b: DesignSpec): number {
   const shapeDist = (sa: string, sb: string) => {
     const A = new Set(sa.split('|').filter(Boolean));
     const B = new Set(sb.split('|').filter(Boolean));
-    if (A.size + B.size === 0) return 1;
+    // Neither spec has qualifying shapes: identical in this dimension.
+    if (A.size + B.size === 0) return 0;
     let common = 0;
     for (const k of A) if (B.has(k)) common++;
     return 1 - common / Math.max(A.size, B.size);
@@ -826,7 +830,8 @@ export function variantSimilarity(a: DesignSpec, b: DesignSpec): number {
     );
   const paletteDist = (pa: Set<number>, pb: Set<number>) => {
     const all = new Set([...pa, ...pb]);
-    if (all.size === 0) return 1;
+    // Both palettes are empty (no saturated shapes): identical here.
+    if (all.size === 0) return 0;
     let common = 0;
     for (const h of pa) if (pb.has(h)) common++;
     return 1 - common / all.size;
@@ -842,7 +847,8 @@ export function variantSimilarity(a: DesignSpec, b: DesignSpec): number {
     );
   const setDist = (sa: Set<string>, sb: Set<string>) => {
     const all = new Set([...sa, ...sb]);
-    if (all.size === 0) return 1;
+    // Neither spec uses any font of this kind: identical here.
+    if (all.size === 0) return 0;
     let common = 0;
     for (const k of sa) if (sb.has(k)) common++;
     return 1 - common / all.size;

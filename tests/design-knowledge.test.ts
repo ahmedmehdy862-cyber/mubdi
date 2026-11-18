@@ -8,9 +8,11 @@ import {
   checkHierarchy,
   coach,
   contrastHex,
+  effectiveBackground,
   ensureContrast,
   evaluateDesign,
   generateConcepts,
+  hexToRgb,
   improveSpec,
   knowledgeSnapshot,
   makeGrid,
@@ -111,10 +113,14 @@ describe('rubric', () => {
     const bad = JSON.parse(JSON.stringify(spec)) as DesignSpec;
     const headline = bad.layers.find((l) => l.name === 'HEADLINE')!;
     const run = headline.textRuns![0]!;
-    run.color = { ...bad.canvas.background, a: 1 }; // invisible headline
     run.size = 9; // far below the floor
     run.tracking = 6; // breaks connected Arabic
     headline.y = 4; // inside the platform safe zone
+    // Invisible headline: match the layer's real effective background (the
+    // surface actually painted behind it), not the canvas colour — Q3
+    // templates place headlines on cards, not straight on the canvas.
+    const bg = effectiveBackground(bad, headline);
+    run.color = { ...hexToRgb(bg), a: 1 };
 
     const evaluation = evaluateDesign(bad, brief, preset);
     expect(evaluation.score).toBeLessThanOrEqual(79);

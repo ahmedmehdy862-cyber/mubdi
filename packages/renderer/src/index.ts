@@ -117,11 +117,120 @@ function drawShape(
   const gradient = gradientOf(layer);
   const fill = layer.fill ?? { r: 128, g: 128, b: 128, a: 1 };
   const { x, y, width: w, height: h } = layer;
+  const effects = layer.effects ?? [];
+
+  // soft-shadow applies to the next fill/stroke only — scoped per branch.
+  const withShadow = (draw: () => void): void => {
+    effectStyles(ctx, layer, effects);
+    draw();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+  };
 
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, layer.opacity ?? 1));
 
-  if (kind === 'line') {
+  if (kind === 'star4') {
+    ctx.fillStyle = gradient ? linearGradient(ctx, layer, gradient) : colorCss(fill);
+    withShadow(() => drawStar4(ctx, x, y, w, h));
+  } else if (kind === 'tape') {
+    const angle =
+      typeof info['angle'] === 'number' ? ((info['angle'] as number) * Math.PI) / 180 : 0;
+    ctx.save();
+    ctx.globalAlpha *= 0.9;
+    ctx.translate(x + w / 2, y + h / 2);
+    ctx.rotate(angle);
+    ctx.fillStyle = colorCss(fill);
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.restore();
+  } else if (kind === 'ring') {
+    const stroke = Math.max(2, typeof info['stroke'] === 'number' ? (info['stroke'] as number) : 4);
+    ctx.strokeStyle = colorCss(fill);
+    ctx.lineWidth = stroke;
+    ctx.beginPath();
+    ctx.ellipse(
+      x + w / 2,
+      y + h / 2,
+      Math.max(0.5, w / 2 - stroke / 2),
+      Math.max(0.5, h / 2 - stroke / 2),
+      0,
+      0,
+      Math.PI * 2,
+    );
+    ctx.stroke();
+  } else if (kind === 'blob') {
+    ctx.fillStyle = gradient ? linearGradient(ctx, layer, gradient) : colorCss(fill);
+    withShadow(() => drawBlob(ctx, layer));
+  } else if (kind === 'pattern') {
+    drawPatternVeil(
+      ctx,
+      layer,
+      typeof info['pattern'] === 'string' ? (info['pattern'] as string) : 'islamic',
+    );
+  } else if (kind === 'diag') {
+    const rise = typeof info['rise'] === 'number' ? (info['rise'] as number) : h * 0.2;
+    const rtl = info['rtl'] === true;
+    ctx.fillStyle = gradient ? linearGradient(ctx, layer, gradient) : colorCss(fill);
+    ctx.beginPath();
+    if (rtl) {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + w, y + rise);
+    } else {
+      ctx.moveTo(x, y + rise);
+      ctx.lineTo(x + w, y);
+    }
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x, y + h);
+    ctx.closePath();
+    ctx.fill();
+  } else if (kind === 'device') {
+    // bezel
+    ctx.fillStyle = colorCss(fill);
+    withShadow(() => {
+      roundedPath(ctx, x, y, w, h, radius || w * 0.09);
+      ctx.fill();
+    });
+    // screen
+    const inset = Math.max(8, w * 0.055);
+    ctx.fillStyle = typeof info['screen'] === 'string' ? (info['screen'] as string) : '#101418';
+    roundedPath(
+      ctx,
+      x + inset,
+      y + inset,
+      w - inset * 2,
+      h - inset * 2,
+      Math.max(4, (radius || w * 0.09) * 0.7),
+    );
+    ctx.fill();
+    // accent bar inside screen
+    ctx.fillStyle =
+      typeof info['accent'] === 'string' ? (info['accent'] as string) : colorCss(fill);
+    roundedPath(ctx, x + inset * 2.4, y + inset * 2, w - inset * 4.8, Math.max(10, h * 0.045), 6);
+    ctx.fill();
+  } else if (kind === 'badge') {
+    ctx.fillStyle = colorCss(fill);
+    ctx.beginPath();
+    ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const dotColor = typeof info['dot'] === 'string' ? (info['dot'] as string) : null;
+    if (dotColor) {
+      ctx.fillStyle = dotColor;
+      const d = Math.min(w, h) * 0.32;
+      ctx.beginPath();
+      ctx.ellipse(x + w / 2, y + h / 2, d / 2, d / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // checkmark-like core: accent dot kept neutral
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = Math.max(2, Math.min(w, h) * 0.08);
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.34, y + h * 0.52);
+      ctx.lineTo(x + w * 0.46, y + h * 0.64);
+      ctx.lineTo(x + w * 0.68, y + h * 0.38);
+      ctx.stroke();
+    }
+  } else if (kind === 'line') {
     ctx.fillStyle = colorCss(fill);
     ctx.fillRect(x, y, w, Math.max(1, h));
   } else if (kind === 'circle') {
@@ -136,7 +245,7 @@ function drawShape(
       0,
       Math.PI * 2,
     );
-    ctx.fill();
+    withShadow(() => ctx.fill());
   } else if (kind === 'frame') {
     ctx.strokeStyle = colorCss(fill);
     ctx.lineWidth = Math.max(1.5, Math.round(Math.min(w, h) * 0.004));
@@ -161,10 +270,12 @@ function drawShape(
   } else {
     ctx.fillStyle = gradient ? linearGradient(ctx, layer, gradient) : colorCss(fill);
     if (radius > 0) {
-      roundedPath(ctx, x, y, w, h, radius);
-      ctx.fill();
+      withShadow(() => {
+        roundedPath(ctx, x, y, w, h, radius);
+        ctx.fill();
+      });
     } else {
-      ctx.fillRect(x, y, w, h);
+      withShadow(() => ctx.fillRect(x, y, w, h));
     }
   }
   ctx.restore();
@@ -217,6 +328,113 @@ function drawText(
 }
 
 export * from './analyze.js';
+
+type Ctx2D = ReturnType<ReturnType<typeof createCanvas>['getContext']>;
+
+function effectStyles(ctx: Ctx2D, layer: Layer, effects: string[] | undefined): void {
+  if (effects?.includes('soft-shadow')) {
+    ctx.shadowColor = 'rgba(12,16,22,0.28)';
+    ctx.shadowBlur = Math.max(10, layer.width * 0.06);
+    ctx.shadowOffsetY = Math.max(4, layer.height * 0.025);
+  }
+}
+
+function drawStar4(ctx: Ctx2D, x: number, y: number, w: number, h: number): void {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const outer = Math.min(w, h) / 2;
+  const inner = outer * 0.3;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const ang = (Math.PI / 4) * i - Math.PI / 2;
+    const r = i % 2 === 0 ? outer : inner;
+    const px = cx + Math.cos(ang) * r;
+    const py = cy + Math.sin(ang) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawBlob(ctx: Ctx2D, layer: Layer): void {
+  const { x, y, width: w, height: h } = layer;
+  // 4-point organic blob: quadratic loop with irregular control points.
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.5, y + h * 0.06);
+  // piecewise quadratic loops through the anchor points for an organic silhouette
+  const pts = [
+    [0.5, 0.06],
+    [0.88, 0.35],
+    [0.8, 0.86],
+    [0.42, 0.96],
+    [0.1, 0.62],
+    [0.24, 0.14],
+  ] as const;
+  pts.forEach(([px, py], i) => {
+    const next = pts[(i + 1) % pts.length]!;
+    const midX = x + ((px + next[0]) / 2) * w;
+    const midY = y + ((py + next[1]) / 2) * h;
+    ctx.quadraticCurveTo(x + px * w, y + py * h, midX, midY);
+  });
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawPatternVeil(ctx: Ctx2D, layer: Layer, style: string): void {
+  const { x, y, width: w, height: h } = layer;
+  const cell = Math.max(24, Math.round((layer.metadata['cell'] as number) ?? 64));
+  const alpha = layer.opacity ?? 0.06;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = colorCss(layer.fill ?? { r: 20, g: 20, b: 20, a: 1 });
+  ctx.strokeStyle = ctx.fillStyle;
+  ctx.lineWidth = Math.max(1.5, cell * 0.045);
+  if (style === 'dots') {
+    for (let py = y + cell / 2; py < y + h; py += cell) {
+      for (let px = x + cell / 2; px < x + w; px += cell) {
+        ctx.beginPath();
+        ctx.ellipse(px, py, cell * 0.06, cell * 0.06, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  } else if (style === 'grid') {
+    for (let px = x; px < x + w; px += cell) {
+      ctx.beginPath();
+      ctx.moveTo(px, y);
+      ctx.lineTo(px, y + h);
+      ctx.stroke();
+    }
+    for (let py = y; py < y + h; py += cell) {
+      ctx.beginPath();
+      ctx.moveTo(x, py);
+      ctx.lineTo(x + w, py);
+      ctx.stroke();
+    }
+  } else {
+    // islamic: octagon-star lattice (two rotated squares per cell)
+    for (let py = y; py < y + h; py += cell) {
+      for (let px = x; px < x + w; px += cell) {
+        const cx = px + cell / 2;
+        const cy = py + cell / 2;
+        const r = cell * 0.3;
+        for (const rot of [Math.PI / 8, -Math.PI / 8]) {
+          ctx.beginPath();
+          for (let i = 0; i < 4; i++) {
+            const a = rot + (Math.PI / 2) * i;
+            const px1 = cx + Math.cos(a) * r;
+            const py1 = cy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(px1, py1);
+            else ctx.lineTo(px1, py1);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+      }
+    }
+  }
+  ctx.restore();
+}
 
 export function renderSpecToPng(spec: DesignSpec): Buffer {
   const canvas = createCanvas(spec.canvas.width, spec.canvas.height);

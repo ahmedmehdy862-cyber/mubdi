@@ -3,24 +3,28 @@ import { getPreset } from '@mubdi/schemas';
 import {
   bestTextOn,
   buildPalette,
-  chooseArchetype,
-  compose,
   ensureContrast,
   ensureContentSlots,
-  FONT_PAIRINGS,
+  extractBigNumber,
+  fontPairingFor,
   getDirection,
   hexToRgb,
   makeTypeScale,
   mix,
   pickDirections,
+  pickTemplates,
   relativeLuminance,
+  renderTemplate,
   rgbToHex,
   safeRect,
+  snap,
+  useOfBrief,
   type ArtDirection,
   type ComposeCopy,
   type Palette,
   type PlannedShape,
   type PlannedText,
+  type TemplatePlan,
   type TextRole,
   type TypeScale,
 } from '@mubdi/design-knowledge';
@@ -79,6 +83,12 @@ function normalizeHex(hex: string): string {
 }
 
 export function hexToColor(hex: string): Color {
+  // 8-digit hex (#RRGGBBAA) carries alpha straight from the template DSL.
+  const clean = hex.replace(/^#/, '').toLowerCase();
+  if (clean.length === 8) {
+    const rgb = hexToRgb(`#${clean.slice(0, 6)}`);
+    return { r: rgb.r, g: rgb.g, b: rgb.b, a: parseInt(clean.slice(6, 8), 16) / 255 };
+  }
   const rgb = hexToRgb(normalizeHex(hex));
   return { r: rgb.r, g: rgb.g, b: rgb.b, a: 1 };
 }
@@ -136,12 +146,6 @@ function buildPaletteFor(brief: DesignBrief, direction: ArtDirection, brand?: Sp
   return palette;
 }
 
-function fontsFor(direction: ArtDirection, brand?: SpecBrand): { display: string; body: string } {
-  if (brand?.fonts?.arabic) return { display: brand.fonts.arabic, body: brand.fonts.arabic };
-  const pairing = FONT_PAIRINGS.find((p) => p.id === direction.fontPair) ?? FONT_PAIRINGS[0]!;
-  return { display: pairing.display, body: pairing.body };
-}
-
 function typeFor(
   preset: { width: number; height: number; minFontSize: number },
   direction: ArtDirection,
@@ -166,7 +170,9 @@ const ROLE_NAME: Record<TextRole, string> = {
 function shapeToLayer(shape: PlannedShape, palette: Palette, index: number): Layer {
   const type: Layer['type'] =
     shape.kind === 'image' ? 'image' : shape.kind === 'scrim' ? 'overlay' : 'shape';
-  const metadata: Record<string, unknown> = { shape: shape.kind };
+  // Q3: template primitives carry drawing params (angle/stroke/dot/pattern…)
+  // plus renderer effect tags — both must reach the layer verbatim.
+  const metadata: Record<string, unknown> = { ...(shape.meta ?? {}), shape: shape.kind };
   if (shape.radius !== undefined) metadata['radius'] = shape.radius;
   if (shape.gradient) {
     const from = hexToColor(shape.gradient.from);
@@ -198,7 +204,7 @@ function shapeToLayer(shape: PlannedShape, palette: Palette, index: number): Lay
     locked: false,
     mask: false,
     fill: hexToColor(shape.fill),
-    effects: [],
+    effects: [...(shape.effects ?? [])],
     metadata,
   };
 }
@@ -220,8 +226,8 @@ function textToLayer(
       : fonts.body;
   const text = block.lines.filter(Boolean).join('\n') || block.text;
   // Contrast must be measured against what is actually behind the glyphs:
-  // CTA text sits on its own pill, not on the page background.
-  const backdrop = backdropHex ?? palette.background;
+  // CTA sits on its pill; template panel text sits on its panel.
+  const backdrop = block.backdropHex ?? backdropHex ?? palette.background;
   const colorHex = ensureContrast(block.color, backdrop, 4.5);
   const run: TextRun = {
     text,
@@ -307,7 +313,7 @@ function logoPlaceholder(
     width,
     height,
     z: 150,
-    opacity: 0.92,
+    opacity: 0.4,
     blendMode: 'normal',
     visible: true,
     locked: false,
@@ -342,7 +348,6 @@ export function generateVariantDetails(
   presetId: string,
   variant: number,
   brand?: SpecBrand,
-  archetypeOverride?: string,
 ): GeneratedVariant {
   const preset = getPreset(presetId) ?? getPreset('ig_post_4x5')!;
   const rtl = brief.direction !== 'ltr';
@@ -351,40 +356,85 @@ export function generateVariantDetails(
     choices[((variant % choices.length) + choices.length) % choices.length] ?? choices[0]!;
   const direction = choice.direction;
   const palette = buildPaletteFor(brief, direction, brand);
-  const fonts = fontsFor(direction, brand);
   const type = typeFor(preset, direction);
-  const archetype = archetypeOverride ?? chooseArchetype(direction, variant, brief.intent);
-  const plan = compose({
-    preset: {
-      width: preset.width,
-      height: preset.height,
-      margins: preset.margins,
-      safeZones: preset.safeZones,
-      minFontSize: preset.minFontSize,
-    },
-    direction,
-    type,
-    copy: buildCopy(brief, brand),
-    palette,
+
+  /* ---------------------------------------------------------------- */
+  /* Q3 — TEMPLATE-FIRST PATH                                          */
+  /* Three variants come from three different templates (pattern AND   */
+  /* style differ). pickTemplates guarantees that, so every variant    */
+  /* already has its own composition.                                  */
+  /* ---------------------------------------------------------------- */
+  const copyTemplate: ComposeCopy = {
+    ...buildCopy(brief, brand),
+    hashtags: [...brief.copy.hashtags],
+  };
+  const briefText = [
+    brief.copy.headline,
+    brief.copy.subheadline ?? '',
+    brief.copy.body ?? '',
+    brief.copy.cta ?? '',
+    brief.occasion ?? '',
+  ].join(' ');
+  const templateUse = useOfBrief(brief.intent, briefText);
+  const picked = pickTemplates(templateUse, 3);
+  const tpl = picked[((variant % picked.length) + picked.length) % picked.length]!;
+  const tplPair = fontPairingFor(tpl.fontPair);
+  // Brand identity outranks the template's own pairing (never guess fonts:
+  // a supplied brand font always wins over the style default).
+  const fontsTpl = brand?.fonts?.arabic
+    ? { display: brand.fonts.arabic, body: brand.fonts.arabic }
+    : { display: tplPair.display, body: tplPair.body };
+  const bigNumber = extractBigNumber(
+    brief.copy.headline,
+    brief.copy.body ?? '',
+    brief.copy.cta ?? '',
+  );
+  const templatePlan: TemplatePlan = renderTemplate(tpl, {
+    width: preset.width,
+    height: preset.height,
+    margin: preset.margins,
     rtl,
-    variant,
-    archetype,
+    palette,
+    hex: {
+      background: palette.background,
+      surface: palette.surface,
+      primary: palette.primary,
+      accent: palette.accent,
+      text: palette.text,
+      textMuted: palette.textMuted,
+      onPrimary: palette.onPrimary,
+    },
+    fonts: fontsTpl,
+    type,
+    copy: copyTemplate,
+    minFoot: preset.minFontSize,
+    ...(bigNumber ? { bigNumber } : {}),
+    direction,
+    sp: (v: number) => snap(v, 8),
   });
 
-  // Q2 contract: content-pack details and the contact strip survive whatever
-  // archetype was selected — inserted into a free band when missing.
-  const copyFinal = buildCopy(brief, brand);
-  const marginX = preset.margins ?? Math.round(Math.min(preset.width, preset.height) * 0.06);
-  ensureContentSlots(plan, copyFinal, {
+  const plan = {
+    archetype: `tpl:${tpl.id}`,
+    nameAr: templatePlan.nameAr,
+    rationaleAr: templatePlan.rationaleAr,
+    blocks: templatePlan.blocks,
+    shapes: templatePlan.shapes,
+    readingFlow: 'rtl-z' as const,
+    focal: templatePlan.focal,
+  };
+  const fontsFinal = fontsTpl;
+
+  // Q2 contract as a backstop for templates too: no renderer may silently
+  // drop the content rows, CTA or footer — ensureContentSlots fills any gap.
+  ensureContentSlots(plan, copyTemplate, {
     content: {
-      x: marginX,
-      y: Math.max(marginX, preset.safeZones.top),
-      width: preset.width - marginX * 2,
+      x: preset.margins,
+      y: Math.max(preset.margins, preset.safeZones.top),
+      width: preset.width - preset.margins * 2,
       height:
         preset.height -
-        marginX * 2 -
-        Math.max(marginX, preset.safeZones.top) -
-        Math.max(marginX, preset.safeZones.bottom),
+        Math.max(preset.margins, preset.safeZones.top) -
+        Math.max(preset.margins, preset.safeZones.bottom),
     },
     type,
     rtl,
@@ -423,7 +473,7 @@ export function generateVariantDetails(
         block,
         brief,
         preset,
-        fonts,
+        fontsFinal,
         palette,
         index,
         rtl,
@@ -432,7 +482,10 @@ export function generateVariantDetails(
     ),
   );
 
-  if (!textBlocks.some((block) => block.role === 'logo')) {
+  if (
+    !textBlocks.some((block) => block.role === 'logo') &&
+    !plan.shapes.some((s) => s.id === 'logo-slot')
+  ) {
     layers.push(logoPlaceholder(preset, palette, rtl));
   }
 
@@ -490,7 +543,14 @@ export function generateVariantDetails(
       '50_Overlays',
       '00_Guides',
     ],
-    fonts: [...new Set([fonts.display, fonts.body, `${fonts.display}-Bold`, `${fonts.body}-Bold`])],
+    fonts: [
+      ...new Set([
+        fontsFinal.display,
+        fontsFinal.body,
+        `${fontsFinal.display}-Bold`,
+        `${fontsFinal.body}-Bold`,
+      ]),
+    ],
     colors,
     version: 1,
     createdAt: new Date().toISOString(),
@@ -502,7 +562,7 @@ export function generateVariantDetails(
     directionNameAr: direction.nameAr,
     directionSummaryAr: direction.summaryAr,
     directionWhyAr: choice.whyAr,
-    archetype,
+    archetype: plan.archetype,
     archetypeNameAr: plan.nameAr,
     rationaleAr: plan.rationaleAr,
     paletteSummaryAr: `لوحة ${palette.mode === 'dark' ? 'داكنة' : 'فاتحة'} — ${palette.scheme} على ${colorToHex(hexToColor(palette.primary))}`,
@@ -527,25 +587,10 @@ export function generateVariantSet(
   presetId: string,
   brand?: SpecBrand,
 ): GeneratedVariant[] {
-  const used = new Set<string>();
-  const out: GeneratedVariant[] = [];
-  for (let variant = 0; variant < 3; variant++) {
-    let details = generateVariantDetails(brief, presetId, variant, brand);
-    // A prompt can point every direction at the same archetype (e.g. "event"
-    // forces event-poster). Rotate until each variant has its own composition.
-    if (used.has(details.archetype)) {
-      const direction = getDirection(details.directionId);
-      for (let step = 1; step <= 6; step++) {
-        const candidate = chooseArchetype(direction, variant + step, brief.intent);
-        if (used.has(candidate)) continue;
-        details = generateVariantDetails(brief, presetId, variant, brand, candidate);
-        break;
-      }
-    }
-    used.add(details.archetype);
-    out.push(details);
-  }
-  return out;
+  // pickTemplates already guarantees the three variants differ in pattern
+  // AND style, so no rotation is needed any more (the old archetype loop
+  // existed because a prompt could force every direction onto one layout).
+  return [0, 1, 2].map((variant) => generateVariantDetails(brief, presetId, variant, brand));
 }
 
 export { getDirection, DIRECTION_PRIMARY };

@@ -9,7 +9,7 @@
  */
 import * as core from '../packages/core/src/index';
 import { renderSpecToPng } from '../packages/renderer/src/index';
-import { GOLDEN_SET } from './golden-set';
+import { GOLDEN_SET } from './golden-data';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 

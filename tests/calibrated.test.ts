@@ -172,6 +172,58 @@ function referenceGradeSpec(): DesignSpec {
   };
 }
 
+/**
+ * Pre-Q3 flat generator output, pinned as a synthetic spec: solid background
+ * + text only, no visual hero. The live generator no longer produces this
+ * (Q3 templates), but the critics must keep rejecting this shape — it is the
+ * failure mode the pixel thresholds were calibrated on.
+ */
+function flatSpec(): DesignSpec {
+  return {
+    id: 'flat',
+    briefId: 'flat',
+    canvas: { width: W, height: H, background: GREEN, platform: 'ig_post_4x5' },
+    layers: [
+      {
+        id: 'bg',
+        name: '90_Background',
+        type: 'background',
+        x: 0,
+        y: 0,
+        width: W,
+        height: H,
+        z: 0,
+        opacity: 1,
+        blendMode: 'normal',
+        visible: true,
+        locked: true,
+        mask: false,
+        fill: GREEN,
+        effects: [],
+        metadata: {},
+      },
+      text('headline', 'headline', 80, 300, W - 160, 240, 'ملتقى التطوع السنوي', 96, INK, true, 10),
+      text(
+        'subhead',
+        'subhead',
+        80,
+        600,
+        W - 160,
+        80,
+        'يوم الجمعة الساعة 5 مساءً',
+        44,
+        INK,
+        false,
+        11,
+      ),
+      text('cta', 'cta', 80, 1180, W - 160, 70, 'سجّل الآن في الموقع', 40, INK, false, 12),
+    ],
+    groups: [],
+    fonts: ['Cairo-Bold', 'Cairo-Regular'],
+    colors: [],
+  };
+}
+
 describe('calibrated critic (Q1: pixel ground truth)', () => {
   it('embeds the calibration thresholds measured on 61 refs vs 60 flat renders', () => {
     expect(PIXEL_THRESHOLDS.edgeDensity).toBe(0.065);
@@ -181,9 +233,10 @@ describe('calibrated critic (Q1: pixel ground truth)', () => {
   });
 
   it('flat generator output: pixel evidence confirms the spec verdict', async () => {
-    const brief = parseBrief(PROMPT);
-    const spec = generateSpec(brief, 'ig_post_4x5', 0);
-    const review = await calibratedReview(spec);
+    // The Q3 template generator no longer emits flat output, so the pre-Q3
+    // flat shape is pinned synthetically (see flatSpec) — the verdict must
+    // still be an honest rejection backed by pixel evidence.
+    const review = await calibratedReview(flatSpec());
     expect(review.score).toBeLessThan(45);
     expect(review.pass).toBe(false);
     expect(review.pixel.edgeDensity).toBeLessThan(PIXEL_THRESHOLDS.edgeDensity);
@@ -221,8 +274,8 @@ describe('calibrated critic (Q1: pixel ground truth)', () => {
     const brief = parseBrief(PROMPT);
     const spec = generateSpec(brief, 'ig_post_4x5', 0);
     const loop = await runQualityLoop(spec, brief);
-    // The generator cannot reach the gate without templates (Q3): the loop
-    // must say so instead of inventing a passing score.
+    // Variant 0 lands below the gate (measured 75): the loop must say so
+    // instead of inventing a passing score.
     expect(loop.review.score).toBeLessThan(SHOW_GATE);
     expect(loop.escalateAr).toContain('قالب');
     expect(loop.review.gapsAr.length).toBeGreaterThan(0);

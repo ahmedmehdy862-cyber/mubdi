@@ -22,9 +22,28 @@ export interface PlannedText {
   weight: 'regular' | 'bold';
   color: string;
   track: number;
+  /** Actual colour behind the glyphs (panel/pill) — contrast is solved
+   * against this instead of the page background when present. */
+  backdropHex?: string;
 }
 
-export type ShapeKind = 'rect' | 'circle' | 'line' | 'frame' | 'scrim' | 'image';
+export type ShapeKind =
+  | 'rect'
+  | 'circle'
+  | 'line'
+  | 'frame'
+  | 'scrim'
+  | 'image'
+  // Q4/Q3 rich primitives (see docs/design-language.md §7)
+  | 'star4' // four-point sparkle
+  | 'tape' // washi-tape strip (slightly rotated rect)
+  | 'ring' // donut / outline circle
+  | 'blob' // organic rounded shape
+  | 'pattern' // geometric pattern veil (islamic / dots / grid)
+  | 'diag' // diagonal split block
+  | 'ribbon' // wide banner band
+  | 'device' // device/app-frame mockup
+  | 'badge'; // icon-carrying circle badge
 
 export interface PlannedShape {
   id: string;
@@ -35,6 +54,10 @@ export interface PlannedShape {
   radius?: number;
   gradient?: { from: string; to: string; angle: number };
   noteAr?: string;
+  /** Renderer effect tags: 'soft-shadow' | 'glow' | … */
+  effects?: string[];
+  /** Extra drawing parameters (star points, pattern style, tape angle…). */
+  meta?: Record<string, unknown>;
 }
 
 export interface LayoutPlan {
@@ -204,6 +227,8 @@ export interface ComposeCopy {
   cta?: string;
   footer?: string;
   logo?: string;
+  /** Content-pack hashtags (Q2) — rendered by the template footer bars. */
+  hashtags?: string[];
 }
 
 export interface ComposeInput {

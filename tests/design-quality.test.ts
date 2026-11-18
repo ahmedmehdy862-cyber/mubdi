@@ -105,6 +105,57 @@ function text(
   };
 }
 
+/**
+ * Pre-Q3 flat output pinned as a synthetic spec: solid background + text
+ * only, no visual hero. The live generator no longer emits this shape, but
+ * the critics must keep rejecting it.
+ */
+function flatSpec(): DesignSpec {
+  return {
+    id: 'flat',
+    briefId: 'flat',
+    canvas: { width: W, height: H, background: GREEN, platform: 'ig_post_4x5' },
+    layers: [
+      {
+        id: 'bg',
+        name: '90_Background',
+        type: 'background',
+        x: 0,
+        y: 0,
+        width: W,
+        height: H,
+        z: 0,
+        opacity: 1,
+        blendMode: 'normal',
+        visible: true,
+        locked: true,
+        mask: false,
+        fill: GREEN,
+        effects: [],
+        metadata: {},
+      },
+      text('headline', 'headline', 80, 300, W - 160, 240, 'ملتقى التطوع السنوي', 96, INK, true, 10),
+      text(
+        'subhead',
+        'subhead',
+        80,
+        600,
+        W - 160,
+        80,
+        'يوم الجمعة الساعة 5 مساءً',
+        44,
+        INK,
+        false,
+        11,
+      ),
+      text('cta', 'cta', 80, 1180, W - 160, 70, 'سجّل الآن في الموقع', 40, INK, false, 12),
+    ],
+    groups: [],
+    fonts: ['Cairo-Bold', 'Cairo-Regular'],
+    colors: [],
+  };
+}
+
 /** A reference-grade P1 "central card" spec built to match design-language. */
 function referenceGradeSpec(): DesignSpec {
   const layers: Layer[] = [
@@ -217,13 +268,24 @@ describe('design language tokens', () => {
 describe('quality critic calibration', () => {
   const brief = parseBrief(PROMPT);
 
-  it('fails the current flat generator output below the gate', () => {
-    const spec = generateSpec(brief, 'ig_post_4x5', 0);
-    const evaluation = evaluateQuality(spec);
+  it('fails flat output below the gate (pre-Q3 shape pinned synthetically)', () => {
+    // The live generator now emits template-based specs (Q3); the flat shape
+    // it used to produce is pinned here so the critic keeps rejecting it.
+    const evaluation = evaluateQuality(flatSpec());
     expect(evaluation.score).toBeLessThan(40);
     expect(evaluation.pass).toBe(false);
     const ids = evaluation.findings.map((f) => f.id);
     expect(ids).toContain('richness.flat');
+  });
+
+  it('live template generator clears the quality gate (Q3)', () => {
+    const specs = [0, 1, 2].map((v) => generateSpec(brief, 'ig_post_4x5', v));
+    const evaluations = evaluateVariantSetQuality(specs);
+    for (const e of evaluations) {
+      expect(e.score).toBeGreaterThanOrEqual(80);
+      expect(e.pass).toBe(true);
+      expect(e.findings.map((f) => f.id)).not.toContain('richness.flat');
+    }
   });
 
   it('scores a reference-grade design 80+ (calibration high side)', () => {
@@ -256,13 +318,25 @@ describe('quality critic calibration', () => {
   });
 
   it('evaluates a full variant set with shared diversity findings', () => {
-    const specs = [0, 1, 2].map((v) => generateSpec(brief, 'ig_post_4x5', v));
-    const evaluations = evaluateVariantSetQuality(specs);
-    expect(evaluations).toHaveLength(3);
-    // all current outputs are flat -> all must fail honestly
+    // Shared findings: near-identical variants must each receive the
+    // diversity.similarity finding (pinned with the flat shape, since the
+    // live generator now guarantees pattern+style diversity).
+    const flat = flatSpec();
+    const twin = JSON.parse(JSON.stringify(flat)) as DesignSpec;
+    const evaluations = evaluateVariantSetQuality([flat, twin]);
+    expect(evaluations).toHaveLength(2);
     for (const e of evaluations) {
+      const ids = e.findings.map((f) => f.id);
+      expect(ids).toContain('diversity.similarity');
+      expect(e.score).toBeLessThan(80);
       expect(e.pass).toBe(false);
-      expect(e.score).toBeLessThan(40);
+    }
+    // Live template variants are structurally diverse: no similarity finding.
+    const live = evaluateVariantSetQuality(
+      [0, 1, 2].map((v) => generateSpec(brief, 'ig_post_4x5', v)),
+    );
+    for (const e of live) {
+      expect(e.findings.map((f) => f.id)).not.toContain('diversity.similarity');
     }
   });
 });
