@@ -79,19 +79,45 @@ function extractColors(prompt: string): string[] {
   return [...new Set(found)];
 }
 
+/** Strip trailing fact clauses (day/time) so a prompt reads like a title. */
+function stripFactTail(text: string): string {
+  return text
+    .replace(
+      /\s+(?:و?يوم|اليوم)\s+(?:الجمعة|السبت|الأحد|الاثنين|الثلاثاء|الأربعاء|الخميس|Friday)\b/g,
+      ' ',
+    )
+    .replace(/\s+الساعة\s*[0-9٠-٩]+\s*(?:مساءً|صباحاً|الصباح|المساء)?/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function extractHeadline(prompt: string): string {
+  const clean = prompt.replace(/\s+/g, ' ').trim();
   // quoted
-  const quoted = prompt.match(/["«](.+?)["»]/);
-  if (quoted && quoted[1]) return quoted[1];
+  const quoted = clean.match(/["«](.+?)["»]/);
+  if (quoted?.[1]) return quoted[1].trim();
+  // label prefix — «حملة توعية: …» / «اقتباس: …» / «إعلان: …»: the word
+  // before the colon is only a category, the message after it is the headline.
+  const labeled = clean.match(/^([^:：/]{2,24})[:：]\s*(.+)$/);
+  if (labeled?.[2] && /\p{L}/u.test(labeled[1]!)) {
+    const head = stripFactTail(labeled[2].split(/[،,]/)[0]!.trim());
+    if (head.length >= 4) return head;
+  }
+  // em-dash: the first clause is the headline, the rest supports it
+  const dash = clean.split(/\s+[—–]\s+/);
+  if (dash.length > 1 && dash[0]!.trim().length >= 4) return dash[0]!.trim();
   // event phrase
-  const ev = prompt.match(/(ملتقى[^\n،,.]+)/);
-  if (ev && ev[1]) return ev[1].trim();
+  const ev = clean.match(/(ملتقى[^\n،,.]+)/);
+  if (ev?.[1]) return ev[1].trim();
   // announcement target
-  const ann = prompt.match(/إعلان\s+(.+)/);
-  if (ann && ann[1]) {
+  const ann = clean.match(/إعلان\s+(.+)/);
+  if (ann?.[1]) {
     const cleaned = ann[1].split(/[،,]/)[0];
     if (cleaned) return cleaned.trim();
   }
+  // whole prompt minus trailing facts — still the user's own words
+  const stripped = stripFactTail(clean);
+  if (stripped.length >= 4) return stripped;
   return '';
 }
 

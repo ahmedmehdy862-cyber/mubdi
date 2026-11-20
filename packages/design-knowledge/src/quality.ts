@@ -244,9 +244,10 @@ function detectDepth(
   let backgroundShare = 0;
   let bigMid = 0;
   let small = 0;
-  // A hero is an element that *carries content*: a meaningful image, or a
-  // block with text placed on/inside it. Decorative blobs with nothing on
-  // top are midground at best — never heroes.
+  // A hero is an element that *carries content*: a meaningful image, a block
+  // with text placed on/inside it, or a shape the template explicitly marks
+  // as the hero (`hero*` name — medallion, orbit, object). Decorative blobs
+  // with nothing on top are midground at best — never heroes.
   const textCenters = layers
     .filter((l) => l.type === 'text' && l.visible)
     .map((l) => ({ x: l.x + l.width / 2, y: l.y + l.height / 2 }));
@@ -254,6 +255,7 @@ function detectDepth(
     textCenters.some(
       (c) => c.x >= l.x && c.x <= l.x + l.width && c.y >= l.y && c.y <= l.y + l.height,
     );
+  const isNamedHero = (l: Layer) => (l.name ?? '').toLowerCase().startsWith('hero');
   for (const l of layers) {
     if (exclude.has(l)) continue;
     const a = inkArea(l) / canvasArea;
@@ -274,7 +276,8 @@ function detectDepth(
       continue;
     }
     if (l.type === 'overlay') continue; // scrims/veils are treatment, not structure
-    if (a >= 0.08 && a <= 0.8 && carriesText(l) && roleOf(l) !== 'cta-bg') {
+    const namedHero = isNamedHero(l) && a >= 0.03 && a <= 0.8 && roleOf(l) !== 'cta-bg';
+    if (namedHero || (a >= 0.08 && a <= 0.8 && carriesText(l) && roleOf(l) !== 'cta-bg')) {
       ids.add('hero');
       heroShare = Math.max(heroShare, a);
     } else if (a >= 0.05) {
@@ -298,6 +301,7 @@ function detectArtifacts(spec: DesignSpec, layers: Layer[]): { count: number; ma
   const H = spec.canvas.height;
   const marks = new Set<Layer>();
   const cornerHits: Layer[] = [];
+  const cornerKeys = new Set<string>();
   for (const l of layers) {
     if (l.type !== 'shape' || !l.visible) continue;
     const a = area(l) / (W * H);
@@ -310,11 +314,16 @@ function detectArtifacts(spec: DesignSpec, layers: Layer[]): { count: number; ma
     const rgb = colorToRgb(l.fill);
     if (!rgb) continue;
     const sat = saturationOf(rgb);
-    if (sat > 0.4) cornerHits.push(l);
+    if (sat > 0.4) {
+      cornerHits.push(l);
+      cornerKeys.add(`${nearLeft ? 'L' : 'R'}${nearTop ? 'T' : 'B'}`);
+    }
   }
   // Debug handles appear symmetrically in all four corners — that symmetry is
-  // the fingerprint. >= 3 saturated corner marks = selection/debug artifact.
-  if (cornerHits.length >= 3) {
+  // the fingerprint. >= 3 saturated corner marks across >= 3 DISTINCT corners
+  // = selection/debug artifact. A designed cluster in a single corner
+  // (e.g. three badges stacked bottom-right) is composition, not a debug UI.
+  if (cornerHits.length >= 3 && cornerKeys.size >= 3) {
     for (const l of cornerHits) marks.add(l);
   }
   return { count: marks.size, marks };

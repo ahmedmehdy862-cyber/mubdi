@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { generateSpec } from '../packages/core/src/spec';
 import { parseBrief } from '../packages/core/src/brief';
 import {
   calibratedReview,
@@ -272,10 +271,11 @@ describe('calibrated critic (Q1: pixel ground truth)', () => {
 
   it('quality loop keeps honest scores and escalates when fixes cannot reach 80', async () => {
     const brief = parseBrief(PROMPT);
-    const spec = generateSpec(brief, 'ig_post_4x5', 0);
-    const loop = await runQualityLoop(spec, brief);
-    // Variant 0 lands below the gate (measured 75): the loop must say so
-    // instead of inventing a passing score.
+    // The live generator now clears the gate for this prompt (measured 88
+    // after the surface/background separation floor), so the unfixable path
+    // is pinned with the synthetic flat spec: the loop must say so instead
+    // of inventing a passing score.
+    const loop = await runQualityLoop(flatSpec(), brief);
     expect(loop.review.score).toBeLessThan(SHOW_GATE);
     expect(loop.escalateAr).toContain('قالب');
     expect(loop.review.gapsAr.length).toBeGreaterThan(0);

@@ -217,13 +217,13 @@ function placeholder(kind: DetailKind, label: string, extra = ''): ContentField 
 function craftHeadlines(hl: string, brief: DesignBrief, occ: OccasionCopy): string[] {
   const base = hl.replace(/\s+/g, ' ').trim();
   const options = new Set<string>();
-  // 1. the strongest angle from the creativity module
+  // 1. the brief's own words — shown first, never rewritten into a slogan
+  options.add(base);
+  // 2. the strongest angle from the creativity module
   const angle = headlineAngles(base)[0]?.text;
   if (angle) options.add(angle);
-  // 2. occasion-flavoured punchline
+  // 3. occasion-flavoured punchline
   options.add(`${base} — ${occ.benefitsAr[0]}`);
-  // 3. the plain brief headline (always offered, never dropped)
-  options.add(base);
   return [...options].slice(0, 3);
 }
 
@@ -381,7 +381,9 @@ export function applyPackToBrief(brief: DesignBrief, pack: ContentPack): DesignB
       cta: pack.cta,
       hashtags: pack.hashtags,
       footer: contact ? `${contact.value}  ${footerBits.join(' ')}` : footerBits.join('  '),
-      generated: true,
+      // Generated only when the pack actually replaced the brief's own words
+      // with a crafted variant — extraction-extracted copy stays honest.
+      generated: brief.copy.generated || pack.headlines[0] !== brief.copy.headline,
     },
   };
 }

@@ -17,6 +17,7 @@ import {
   renderTemplate,
   rgbToHex,
   safeRect,
+  separateSurface,
   snap,
   useOfBrief,
   type ArtDirection,
@@ -128,7 +129,7 @@ function buildPaletteFor(brief: DesignBrief, direction: ArtDirection, brand?: Sp
       ...palette,
       mode: isLight(bg) ? 'light' : 'dark',
       background: bg,
-      surface: mixHex(bg, text, 0.08),
+      surface: separateSurface(mixHex(bg, text, 0.08), bg, text),
       text,
       textMuted: ensureContrast(mixHex(text, bg, 0.35), bg, 4.5),
       border: mixHex(text, bg, 0.72),
@@ -205,6 +206,9 @@ function shapeToLayer(shape: PlannedShape, palette: Palette, index: number): Lay
     mask: false,
     fill: hexToColor(shape.fill),
     effects: [...(shape.effects ?? [])],
+    ...(shape.stroke
+      ? { stroke: { color: hexToColor(shape.stroke.color), width: shape.stroke.width } }
+      : {}),
     metadata,
   };
 }
@@ -266,6 +270,12 @@ function textToLayer(
   };
 }
 
+/**
+ * Fit text into the safe area without ever tearing a text block away from the
+ * shape that carries it (CTA pill, footer bar) and without letting two blocks
+ * pile up on the same clamp ceiling — that pile-up is what made the story CTA
+ * and footer print on top of each other.
+ */
 function clampTextLayers(
   layers: Layer[],
   preset: {
@@ -276,18 +286,99 @@ function clampTextLayers(
   },
 ): void {
   const safe = safeRect(preset.width, preset.height, preset.safeZones, preset.margins);
-  for (const layer of layers) {
-    if (layer.type !== 'text') continue;
-    if (layer.width > safe.width) layer.width = safe.width;
-    layer.x = Math.round(Math.min(Math.max(safe.x, layer.x), safe.x + safe.width - layer.width));
-    layer.y = Math.round(Math.min(Math.max(safe.y, layer.y), safe.y + safe.height - layer.height));
-    const ctaBg = layers.find((l) => l.id === 'cta-bg');
-    if (ctaBg && layer.name === 'CTA') {
-      ctaBg.x = layer.x;
-      ctaBg.y = layer.y;
-      ctaBg.width = layer.width;
-      ctaBg.height = layer.height;
+  const safeBottom = safe.y + safe.height;
+  /* extra air added only when a block really has to be moved aside */
+  const GAP = 16;
+
+  const rectOf = (l: Layer) => ({ x: l.x, y: l.y, w: l.width, h: l.height });
+  const hits = (
+    a: { x: number; y: number; w: number; h: number },
+    b: { x: number; y: number; w: number; h: number },
+  ): boolean => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  const union = (
+    a: { x: number; y: number; w: number; h: number },
+    b?: { x: number; y: number; w: number; h: number },
+  ) => {
+    if (!b) return a;
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+    return {
+      x,
+      y,
+      w: Math.max(a.x + a.w, b.x + b.w) - x,
+      h: Math.max(a.y + a.h, b.y + b.h) - y,
+    };
+  };
+
+  const texts = layers.filter((l) => l.type === 'text');
+  const items = texts.map((t) => {
+    /* a CTA travels with its pill, a footer with its bar — but only when the
+       shape really is behind THAT block: several blocks share the FOOTER
+       role (hashtag chips) and none of them may be dragged by the bar. */
+    const cand =
+      t.name === 'CTA'
+        ? layers.find((l) => l.id === 'cta-bg')
+        : t.name === 'FOOTER'
+          ? layers.find((l) => l.id === 'footer-bar')
+          : undefined;
+    const s = cand && hits(rectOf(t), rectOf(cand)) ? cand : undefined;
+    return {
+      t,
+      s,
+      origBottom: t.y + t.height,
+      clamped: false,
+      r: union(rectOf(t), s ? rectOf(s) : undefined),
+    };
+  });
+
+  for (const it of items) {
+    const { t } = it;
+    const origX = t.x;
+    if (t.width > safe.width) t.width = safe.width;
+    t.x = Math.round(Math.min(Math.max(safe.x, t.x), safe.x + safe.width - t.width));
+    const clampedY = Math.round(Math.min(Math.max(safe.y, t.y), safeBottom - t.height));
+    if (t.x !== origX && it.s) {
+      const dx = t.x - origX;
+      it.s.x = Math.round(it.s.x + dx);
+      /* the pill is sized to its label: narrowing the label narrows the pill */
+      if (it.s.id === 'cta-bg') it.s.width = t.width;
     }
+    if (clampedY !== t.y) {
+      /* dragged into the safe area → its pill/bar follows, padding intact */
+      const d = clampedY - t.y;
+      t.y = clampedY;
+      if (it.s) it.s.y = Math.round(it.s.y + d);
+      it.clamped = true;
+    }
+    it.r = union(rectOf(t), it.s ? rectOf(it.s) : undefined);
+  }
+
+  /* Seat the whole column bottom-up: whoever sat lowest keeps its place, and
+     any block that lands on top of an already-seated one yields upward with
+     real air between them. Blocks that never collide (side-by-side hashtag
+     chips, an untouched body stack) are never touched — but a ceiling-clamped
+     footer can no longer print on top of the CTA, in either order. */
+  const order = [...items].sort((a, b) => b.origBottom - a.origBottom);
+  const seated: typeof items = [];
+  for (const m of order) {
+    for (let guard = 0; guard < 40; guard++) {
+      const other = seated.find((o) => hits(m.r, o.r));
+      if (!other) break;
+      const overlap = m.r.y + m.r.h - other.r.y;
+      if (overlap <= 0) break;
+      const dy = overlap + GAP;
+      m.t.y = Math.round(m.t.y - dy);
+      if (m.s) m.s.y = Math.round(m.s.y - dy);
+      m.r = union(rectOf(m.t), m.s ? rectOf(m.s) : undefined);
+      if (m.r.y < safe.y) {
+        const back = safe.y - m.r.y;
+        m.t.y += back;
+        if (m.s) m.s.y = Math.round(m.s.y + back);
+        m.r = union(rectOf(m.t), m.s ? rectOf(m.s) : undefined);
+        break;
+      }
+    }
+    seated.push(m);
   }
 }
 
@@ -302,17 +393,28 @@ function logoPlaceholder(
   rtl: boolean,
 ): Layer {
   const safe = safeRect(preset.width, preset.height, preset.safeZones, preset.margins);
-  const width = Math.max(96, Math.round(Math.min(220, preset.width * 0.2)));
-  const height = Math.round(width * 0.3);
+  /* Top margin strip — the same band template slots use (logoSlotTop sits
+     at margins*0.15, y≈10). The old placement at safe.y dropped the box
+     straight behind top-anchored headlines, where its 0.4 gray fill printed
+     as a smudge over the headline's first word. The box is capped so its
+     bottom stays clear of the safe area text lives in. */
+  const y = Math.round(preset.margins * 0.15);
+  let width = Math.max(96, Math.round(Math.min(220, preset.width * 0.2)));
+  let height = Math.round(width * 0.3);
+  const maxH = safe.y - y - 8;
+  if (height > maxH) {
+    height = Math.max(20, Math.round(maxH));
+    width = Math.max(64, Math.round(height / 0.3));
+  }
   return {
     id: 'logo',
     name: 'LOGO',
     type: 'image',
     x: rtl ? safe.x + safe.width - width : safe.x,
-    y: safe.y,
+    y,
     width,
     height,
-    z: 150,
+    z: 90, // above every shape, below every text block — the slot must never print over the headline
     opacity: 0.4,
     blendMode: 'normal',
     visible: true,

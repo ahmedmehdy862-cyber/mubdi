@@ -56,6 +56,9 @@ export interface PlannedShape {
   noteAr?: string;
   /** Renderer effect tags: 'soft-shadow' | 'glow' | … */
   effects?: string[];
+  /** Crisp outline drawn over the fill (panel borders) — the boundary that
+   *  the pixel critic can actually see; shadows alone diffuse it away. */
+  stroke?: { color: string; width: number };
   /** Extra drawing parameters (star points, pattern style, tape angle…). */
   meta?: Record<string, unknown>;
 }

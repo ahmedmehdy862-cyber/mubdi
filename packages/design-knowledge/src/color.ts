@@ -46,6 +46,32 @@ export interface PaletteOptions {
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
+/** Normalized RGB distance — the same metric the pixel critic uses. */
+export function colorDistance(a: string, b: string): number {
+  const x = hexToRgb(a);
+  const y = hexToRgb(b);
+  const dr = (x.r - y.r) / 255;
+  const dg = (x.g - y.g) / 255;
+  const db = (x.b - y.b) / 255;
+  return Math.min(1, Math.sqrt(dr * dr + dg * dg + db * db) / 1.732);
+}
+
+/**
+ * A surface must separate from the background: below 0.14 normalized
+ * distance a panel boundary is invisible on the critic's 56×70 grid, and
+ * within 0.07 the panel counts as background (an "empty canvas"). Mixes the
+ * surface toward `toward` (the text colour — far from the background by
+ * construction) until the distance holds.
+ */
+export function separateSurface(surface: string, background: string, toward: string): string {
+  if (colorDistance(surface, background) >= 0.15) return surface;
+  for (let w = 0.05; w <= 0.9; w += 0.05) {
+    const candidate = rgbToHex(mix(hexToRgb(surface), hexToRgb(toward), w));
+    if (colorDistance(candidate, background) >= 0.15) return candidate;
+  }
+  return rgbToHex(mix(hexToRgb(surface), hexToRgb(toward), 0.9));
+}
+
 export function hexToRgb(hex: string): Rgb {
   const h = hex.replace(/^#/, '');
   const full =
@@ -262,7 +288,7 @@ export function buildPalette(opts: PaletteOptions): Palette {
       ? rgbToHex(hslToRgb({ h: hsl.h, s: clamp(hsl.s * 0.55, 0.12, 0.42), l: 0.085 }))
       : rgbToHex(hslToRgb({ h: hsl.h, s: clamp(hsl.s * 0.35, 0.05, 0.22), l: 0.965 }));
 
-  const surface =
+  const surfaceBase =
     mode === 'dark'
       ? rgbToHex(hslToRgb({ h: hsl.h, s: clamp(hsl.s * 0.5, 0.1, 0.38), l: 0.13 }))
       : rgbToHex(hslToRgb({ h: hsl.h, s: clamp(hsl.s * 0.4, 0.06, 0.25), l: 0.92 }));
@@ -276,6 +302,8 @@ export function buildPalette(opts: PaletteOptions): Palette {
       : lighten(ensureContrast(primary, background, 3), mode === 'dark' ? 0.04 : 0);
 
   const text = ensureContrast(mode === 'dark' ? '#f8fafc' : '#0b1020', background, 7);
+  // Cards/panels must visibly separate from the background (pixel floor).
+  const surface = separateSurface(surfaceBase, background, text);
   const textMuted = ensureContrast(
     rgbToHex(mix(hexToRgb(text), hexToRgb(background), mode === 'dark' ? 0.32 : 0.28)),
     background,

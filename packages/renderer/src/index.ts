@@ -277,6 +277,27 @@ function drawShape(
     } else {
       withShadow(() => ctx.fillRect(x, y, w, h));
     }
+    if (layer.stroke) {
+      // Crisp panel outline, drawn without the fill's shadow blur: a
+      // boundary the pixel critic can measure (shadows diffuse it away).
+      ctx.save();
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      const lw = layer.stroke.width;
+      ctx.strokeStyle = colorCss(layer.stroke.color);
+      ctx.lineWidth = lw;
+      roundedPath(
+        ctx,
+        x + lw / 2,
+        y + lw / 2,
+        Math.max(1, w - lw),
+        Math.max(1, h - lw),
+        Math.max(1, radius - lw / 2),
+      );
+      ctx.stroke();
+      ctx.restore();
+    }
   }
   ctx.restore();
 }
@@ -394,7 +415,7 @@ function drawPatternVeil(ctx: Ctx2D, layer: Layer, style: string): void {
     for (let py = y + cell / 2; py < y + h; py += cell) {
       for (let px = x + cell / 2; px < x + w; px += cell) {
         ctx.beginPath();
-        ctx.ellipse(px, py, cell * 0.06, cell * 0.06, 0, 0, Math.PI * 2);
+        ctx.ellipse(px, py, cell * 0.14, cell * 0.14, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     }

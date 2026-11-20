@@ -451,11 +451,21 @@ function text(
  * a low-alpha dot veil and a row of hashtag chips so the lower third never
  * reads as dead background (and the pixel critic sees real structure).
  */
-function voidFiller(ctx: TemplateRenderCtx, plan: TemplatePlan, top: number, bottom: number): void {
+function voidFiller(
+  ctx: TemplateRenderCtx,
+  plan: TemplatePlan,
+  top: number,
+  bottom: number,
+  /* Containers (P1's card, P6's panel) pass their inner bounds: the default
+     x = margin*0.6 is WIDER than those containers, so the pane used to cut
+     straight through their side borders. Inset, the pane reads as an inner
+     band and the container's stroke stays whole. */
+  band?: { x: number; width: number },
+): void {
   const H = Math.round(bottom - top);
   if (H < ctx.type.body * 2.2) return;
-  const x0 = Math.round(ctx.margin * 0.6);
-  const w0 = Math.round(ctx.width - ctx.margin * 1.2);
+  const x0 = Math.round(band ? band.x : ctx.margin * 0.6);
+  const w0 = Math.round(band ? band.width : ctx.width - ctx.margin * 1.2);
   const y0 = Math.round(top + ctx.sp(8));
   const h0 = Math.round(H - ctx.sp(16));
   plan.shapes.push(
@@ -463,9 +473,20 @@ function voidFiller(ctx: TemplateRenderCtx, plan: TemplatePlan, top: number, bot
       'void-panel',
       'rect',
       { x: x0, y: y0, width: w0, height: h0 },
-      alphaHex(ctx.hex.primary, 0.09),
+      /* Opaque ink-green, not a translucent veil: at 55% alpha the pane
+         composited to gray over the light half and dark green over the
+         accent half, so the panel read as two-tone. A solid mix sits well
+         clear of the 0.14 edge floor against BOTH halves (light #C9CEC8
+         ≈0.63 away, accent #1DA013 ≈0.44 away) and the page-tone stroke
+         keeps the boundary hard on the green side. */
+      mixHex(ctx.hex.text, ctx.hex.primary, 0.3),
       1,
-      { radius: Math.round(ctx.width * 0.03) },
+      {
+        radius: Math.round(ctx.width * 0.03),
+        // Hard outline: the panel boundary must survive on the pixel grid
+        // (a tint alone measures under the 0.14 edge floor).
+        stroke: { color: ctx.hex.background, width: 6 },
+      },
     ),
   );
   plan.shapes.push(
@@ -474,7 +495,7 @@ function voidFiller(ctx: TemplateRenderCtx, plan: TemplatePlan, top: number, bot
       'pattern',
       { x: x0 + 24, y: y0 + 20, width: w0 - 48, height: Math.max(24, h0 - 40) },
       alphaHex(ctx.hex.primary, 0.85),
-      0.5,
+      0.8,
       { meta: { pattern: 'dots', cell: 36 } },
     ),
   );
@@ -487,7 +508,7 @@ function voidFiller(ctx: TemplateRenderCtx, plan: TemplatePlan, top: number, bot
     const cw = Math.round((w0 - gap * (chips.length - 1) - ctx.margin) / chips.length);
     chips.forEach((tag, i) => {
       const cx = x0 + ctx.margin * 0.5 + i * (cw + gap);
-      const chipTint = alphaHex(ctx.hex.primary, 0.13);
+      const chipTint = ctx.hex.surface;
       plan.shapes.push(
         rectShape(
           `void-chip-${i}`,
@@ -664,9 +685,16 @@ function eyebrowChip(
   return y + h;
 }
 
-function logoSlotTop(ctx: TemplateRenderCtx, plan: TemplatePlan, y: number, w: number): void {
+function logoSlotTop(
+  ctx: TemplateRenderCtx,
+  plan: TemplatePlan,
+  y: number,
+  w: number,
+  opts: { textColor?: string; slotFill?: string } = {},
+): void {
   const size = ctx.type.caption;
   const logoText = ctx.copy.logo ?? 'الشعار';
+  const textColor = opts.textColor ?? ctx.hex.text;
   const lw = Math.min(w, Math.round(measureTextWidth(logoText, size) + size * 1.4));
   const lh = Math.round(size * 2);
   const lx = ctx.rtl ? ctx.width - ctx.margin - lw : ctx.margin;
@@ -675,7 +703,7 @@ function logoSlotTop(ctx: TemplateRenderCtx, plan: TemplatePlan, y: number, w: n
       'logo-slot',
       'rect',
       { x: Math.round(lx), y: Math.round(y), width: lw, height: lh },
-      alphaHex(ctx.hex.text, 0.1),
+      opts.slotFill ?? alphaHex(ctx.hex.text, 0.1),
       1,
       { radius: 12, noteAr: 'ضع شعار العلامة هنا.' },
     ),
@@ -689,7 +717,7 @@ function logoSlotTop(ctx: TemplateRenderCtx, plan: TemplatePlan, y: number, w: n
       Math.round(size * 0.92),
       'center',
       'bold',
-      ctx.hex.text,
+      textColor,
       1.3,
     ),
   );
@@ -717,6 +745,7 @@ function footerBar(
       fitted = fitted.slice(0, -1);
     fitted = `${fitted}…`;
   }
+  const barFill = mode === 'social-bar' ? ctx.hex.text : undefined;
   if (mode === 'social-bar') {
     plan.shapes.push(
       rectShape(
@@ -728,7 +757,10 @@ function footerBar(
           width: Math.round(ctx.width - ctx.margin * 1.2),
           height: h,
         },
-        alphaHex(ctx.hex.text, 0.08),
+        /* An 8% veil measured as nothing on the pixel grid — the handle line
+           floated on a bar nobody could see. Solid ink gives the frame a real
+           base edge; the caption is re-contrasted against it below. */
+        ctx.hex.text,
         1,
         { radius: h / 2 },
       ),
@@ -750,6 +782,7 @@ function footerBar(
       'regular',
       ctx.hex.textMuted,
       1.3,
+      barFill,
     ),
   );
   return y + h;
@@ -774,7 +807,14 @@ function ctaPill(
       { x: Math.round(centreX - w / 2), y: Math.round(y), width: w, height: h },
       ctx.hex.primary,
       1,
-      { radius: h / 2, effects: ['soft-shadow'], meta: { role: 'cta-bg' } },
+      {
+        radius: h / 2,
+        effects: ['soft-shadow'],
+        /* outline in the page tone: on a dark pane a solid primary pill has
+           no measurable boundary, and the label must read as a button */
+        stroke: { color: ctx.hex.background, width: 5 },
+        meta: { role: 'cta-bg' },
+      },
     ),
   );
   plan.blocks.push(
@@ -1116,7 +1156,11 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
         },
         ctx.hex.surface,
         1,
-        { radius: tpl.radius, effects: ['soft-shadow'] },
+        {
+          radius: tpl.radius,
+          effects: ['soft-shadow'],
+          stroke: { color: ctx.hex.text, width: 6 },
+        },
       ),
     );
     plan.focal = { x: ctx.width / 2, y: cardTop + cardH * 0.22 };
@@ -1250,7 +1294,10 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
         ctx.hex.text,
       );
     } else if (tpl.details === 'chips') {
-      voidFiller(ctx, plan, cursor + ctx.type.body * 2.6, detailsBottom + ctx.type.cta * 0.4);
+      voidFiller(ctx, plan, cursor + ctx.type.body * 2.6, detailsBottom + ctx.type.cta * 0.4, {
+        x: cardX + ctx.sp(24),
+        width: cardW - ctx.sp(48),
+      });
       detailChips(
         ctx,
         plan,
@@ -1270,7 +1317,10 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
         ctx.hex.primary,
         ctx.hex.text,
       );
-      voidFiller(ctx, plan, rowsBottom + ctx.type.body * 0.35, detailsBottom + ctx.type.cta * 0.4);
+      voidFiller(ctx, plan, rowsBottom + ctx.type.body * 0.35, detailsBottom + ctx.type.cta * 0.4, {
+        x: cardX + ctx.sp(24),
+        width: cardW - ctx.sp(48),
+      });
     }
 
     ctaPill(ctx, plan, ctx.width / 2, detailsBottom + ctx.type.cta * 0.35, cardW * 0.62);
@@ -1292,6 +1342,8 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
   P2(ctx, tpl, plan) {
     bgGradient(ctx, plan, 125, tpl.prefersDark);
     if (tpl.decor.patternVeil > 0) patternVeil(ctx, plan, 'islamic');
+    /* everything below this line stacks above the background layers */
+    const bgIndex = plan.shapes.length;
 
     const m = ctx.margin;
     const textW = ctx.width - m * 2 - ctx.width * 0.4;
@@ -1419,6 +1471,39 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
     );
     ctaPill(ctx, plan, ctx.rtl ? textX + textW * 0.68 : textX + textW * 0.32, ctaY, textW * 0.68);
 
+    /* Content card: a hard-edged surface carrying the whole text stack.
+       The pale gradient alone never reaches the pixel edge/detail floor and
+       lets one colour swallow the frame — the card (surface + crisp outline
+       + shadow) is the P1-proven depth primitive, spliced behind the hero so
+       the object still rests on top of it. */
+    const footTop = ctx.height - m * 1.5 - ctx.type.caption * 1.6;
+    const padX = Math.round(m * 0.62);
+    const cardTop = Math.round(m * 1.05);
+    const cardBottom = Math.round(
+      Math.min(ctaY + ctx.type.cta * 2.5 + m * 0.7, footTop - m * 0.35),
+    );
+    plan.shapes.splice(
+      bgIndex,
+      0,
+      rectShape(
+        'text-card',
+        'rect',
+        {
+          x: Math.round(textX - padX),
+          y: cardTop,
+          width: Math.round(textW + padX * 2),
+          height: Math.max(40, cardBottom - cardTop),
+        },
+        ctx.hex.surface,
+        1,
+        {
+          radius: tpl.radius,
+          effects: ['soft-shadow'],
+          stroke: { color: ctx.hex.text, width: 6 },
+        },
+      ),
+    );
+
     plan.shapes.push(
       rectShape(
         'midground-blob',
@@ -1429,7 +1514,10 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
           width: Math.round(ctx.width * 0.48),
           height: Math.round(ctx.width * 0.48),
         },
-        alphaHex(ctx.hex.accent, 0.14),
+        /* 14% read as "empty paper" on the pixel grid (under the 0.14 edge
+           floor); 32% makes the lower field an actual plane without
+           competing with the hero. */
+        alphaHex(ctx.hex.accent, 0.32),
         1,
       ),
     );
@@ -1452,6 +1540,7 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
   /* P3 — photographic scene + scrim */
   P3(ctx, tpl, plan) {
     const m = ctx.margin;
+    /* photo field: full-bleed placeholder a real photo replaces */
     plan.shapes.push(
       rectShape(
         'photo',
@@ -1461,7 +1550,7 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
         1,
         {
           gradient: {
-            from: mixHex(ctx.hex.primary, '#101418', 0.35),
+            from: mixHex(ctx.hex.primary, '#101418', 0.45),
             to: mixHex(ctx.hex.accent, ctx.hex.primary, 0.35),
             angle: 150,
           },
@@ -1469,25 +1558,105 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
         },
       ),
     );
+
+    /* solid info sheet: hard top edge + accent seam. Without a real photo
+       the old scrim-left canvas measured edge≈0; this structure carries the
+       composition, and the copy sits on a surface it can actually read on. */
+    const sheetTop = Math.round(ctx.height * 0.5);
     plan.shapes.push(
       rectShape(
-        'scrim-bottom',
-        'scrim',
-        { x: 0, y: 0, width: ctx.width, height: Math.round(ctx.height * 0.78) },
-        mixHex('#101418', ctx.hex.primary, 0.2),
+        'sheet',
+        'rect',
+        { x: 0, y: sheetTop, width: ctx.width, height: ctx.height - sheetTop },
+        ctx.hex.surface,
         1,
-        {
-          gradient: {
-            from: mixHex('#101418', ctx.hex.primary, 0.3),
-            to: alphaHex('#101418', 0),
-            angle: 90,
-          },
-        },
       ),
     );
-    logoSlotTop(ctx, plan, m * 0.9, ctx.width * 0.3);
+    plan.shapes.push(
+      rectShape(
+        'sheet-seam',
+        'rect',
+        { x: 0, y: sheetTop - 9, width: ctx.width, height: 18 },
+        ctx.hex.accent,
+        1,
+      ),
+    );
 
-    let cursor = ctx.height * 0.5;
+    /* white editorial frame: top + sides down to the seam */
+    const fm = Math.round(m * 0.55);
+    const fw = Math.max(8, Math.round(ctx.width * 0.012));
+    const sideH = Math.max(1, sheetTop - 9 - fm);
+    plan.shapes.push(
+      rectShape(
+        'frame-top',
+        'rect',
+        { x: fm, y: fm, width: ctx.width - fm * 2, height: fw },
+        '#ffffff',
+        0.92,
+      ),
+    );
+    plan.shapes.push(
+      rectShape('frame-left', 'rect', { x: fm, y: fm, width: fw, height: sideH }, '#ffffff', 0.92),
+    );
+    plan.shapes.push(
+      rectShape(
+        'frame-right',
+        'rect',
+        { x: ctx.width - fm - fw, y: fm, width: fw, height: sideH },
+        '#ffffff',
+        0.92,
+      ),
+    );
+
+    /* subject placeholder inside the photo field */
+    const d = Math.round(ctx.width * 0.3);
+    const cx = Math.round(ctx.width / 2);
+    const cy = Math.round(ctx.height * 0.29);
+    plan.shapes.push(
+      rectShape(
+        'hero-ring',
+        'ring',
+        { x: cx - d / 2 - 16, y: cy - d / 2 - 16, width: d + 32, height: d + 32 },
+        ctx.hex.accent,
+        0.75,
+        { meta: { stroke: 7 } },
+      ),
+    );
+    plan.shapes.push(
+      rectShape(
+        'hero',
+        'circle',
+        { x: cx - d / 2, y: cy - d / 2, width: d, height: d },
+        ctx.hex.accent,
+        0.95,
+        { effects: ['soft-shadow'] },
+      ),
+    );
+    plan.shapes.push(
+      rectShape(
+        'hero-core',
+        'circle',
+        { x: cx - d * 0.21, y: cy - d * 0.21, width: d * 0.42, height: d * 0.42 },
+        ctx.hex.surface,
+        0.95,
+      ),
+    );
+    plan.shapes.push(
+      rectShape(
+        'hero-star',
+        'star4',
+        { x: cx - d * 0.14, y: cy - d * 0.14, width: d * 0.28, height: d * 0.28 },
+        ctx.hex.primary,
+        1,
+      ),
+    );
+
+    logoSlotTop(ctx, plan, m * 0.9, ctx.width * 0.3, {
+      textColor: '#ffffff',
+      slotFill: alphaHex('#ffffff', 0.14),
+    });
+
+    let cursor = sheetTop + m * 0.7;
     if (ctx.copy.eyebrow) {
       const chipCx = ctx.rtl
         ? ctx.width - m - measureTextWidth(ctx.copy.eyebrow, ctx.type.caption) / 2
@@ -1499,8 +1668,8 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
           ctx.copy.eyebrow,
           chipCx,
           cursor,
-          ctx.hex.accent,
-          ctx.hex.background,
+          alphaHex(ctx.hex.accent, 0.22),
+          ctx.hex.text,
         ) +
         ctx.type.h1 * 0.34;
     }
@@ -1521,26 +1690,31 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
           cursor,
           ctx.width - m * 2,
           2,
-          alphaHex('#ffffff', 0.16),
+          alphaHex(ctx.hex.primary, 0.1),
           ctx.hex.accent,
-          '#ffffff',
+          ctx.hex.text,
         ) +
         ctx.type.body * 0.3;
     }
+    /* CTA clamped above the footer so tall copy never piles onto it */
+    const footY = ctx.height - m * 1.4;
+    const ctaH = ctx.type.cta * 2.5;
+    const ctaY = Math.min(cursor + ctx.type.cta * 0.3, footY - ctaH - ctx.sp(16));
     ctaPill(
       ctx,
       plan,
       ctx.rtl ? ctx.width - m - (ctx.width - m * 2) * 0.23 : m + (ctx.width - m * 2) * 0.23,
-      cursor + ctx.type.cta * 0.3,
+      ctaY,
       (ctx.width - m * 2) * 0.46,
     );
-    plan.focal = { x: ctx.width / 2, y: ctx.height * 0.38 };
+    plan.focal = { x: ctx.width / 2, y: cy };
     if (tpl.decor.sparkle > 0)
       sparkles(ctx, plan, [
-        { x: ctx.width * 0.85, y: ctx.height * 0.3, s: 22 },
-        { x: ctx.width * 0.16, y: ctx.height * 0.22, s: 14 },
+        { x: ctx.width * 0.85, y: ctx.height * 0.36, s: 22 },
+        { x: ctx.width * 0.16, y: ctx.height * 0.18, s: 14 },
+        { x: ctx.width * 0.12, y: ctx.height * 0.41, s: 17 },
       ]);
-    footerBar(ctx, plan, ctx.height - m * 1.4, tpl.footer);
+    footerBar(ctx, plan, footY, tpl.footer);
   },
 
   /* P4 — paper prop */
@@ -1864,20 +2038,34 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
     plan.focal = { x: ctx.width / 2, y: cursor + heroD * 0.4 };
 
     /* raised card under the detail rows: crisp edges + real structure on
-       the flat lower field — the main flat-pixel failure of this pattern */
+       the flat lower field — the main flat-pixel failure of this pattern.
+       Height tracks what detailRows ACTUALLY draws (one step of
+       badge + sp(size*0.55) per body line): rowsH*2 assumed four rows,
+       so the empty lower half ran under voidFiller's pane and the pane
+       printed across the card's bottom border. */
+    const cardRowSize = Math.max(ctx.minFoot, Math.round(ctx.type.body * 0.86));
+    const cardRowCount = (ctx.copy.body ?? '').split('\n').filter(Boolean).slice(0, 2).length;
+    const cardRowsH = cardRowCount * (Math.round(cardRowSize * 1.75) + ctx.sp(cardRowSize * 0.55));
+    const cardTop = Math.round(endCursor - ctx.sp(12));
+    const cardH = Math.round(cardRowsH + ctx.sp(24));
+    const cardBottom = cardTop + cardH;
     plan.shapes.push(
       rectShape(
         'rows-card',
         'rect',
         {
           x: Math.round(m * 0.82),
-          y: Math.round(endCursor - ctx.sp(12)),
+          y: cardTop,
           width: Math.round(ctx.width - m * 1.64),
-          height: Math.round(rowsH * 2 + ctx.sp(24)),
+          height: cardH,
         },
         ctx.hex.surface,
         1,
-        { radius: Math.round(ctx.width * 0.04), effects: ['soft-shadow'] },
+        {
+          radius: Math.round(ctx.width * 0.04),
+          effects: ['soft-shadow'],
+          stroke: { color: ctx.hex.text, width: 6 },
+        },
       ),
     );
     const afterRows = detailRows(
@@ -1894,11 +2082,12 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
     /* CTA is bottom-anchored above the footer; the quiet band between the
        detail rows and the CTA gets a tinted pane instead of dead field.
        footer is reserved FIRST, then CTA is clamped above it so the two
-       never collide on tall stories. */
+       never collide on tall stories. The pane starts below the rows-card
+       (never over it) so the card's border stays whole. */
     const footY = ctx.height - m * 1.3;
     const ctaH = ctx.type.cta * 2.5;
     const ctaY = Math.min(ctx.height - m * 2.05 - ctaH, footY - ctaH - ctx.sp(16));
-    voidFiller(ctx, plan, afterRows + ctx.type.body * 0.3, ctaY);
+    voidFiller(ctx, plan, Math.max(afterRows + ctx.type.body * 0.3, cardBottom + ctx.sp(8)), ctaY);
     ctaPill(ctx, plan, ctx.width / 2, ctaY);
     if (tpl.decor.sparkle > 0) {
       sparkles(ctx, plan, [
@@ -1951,7 +2140,11 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
         },
         ctx.hex.surface,
         1,
-        { radius: tpl.radius, effects: ['soft-shadow'] },
+        {
+          radius: tpl.radius,
+          effects: ['soft-shadow'],
+          stroke: { color: ctx.hex.text, width: 6 },
+        },
       ),
     );
 
@@ -2048,7 +2241,10 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
     });
     /* fill the quiet zone at the panel's foot with a tinted band + tag chips */
     const miniBottom = miniTop + miniH + ctx.sp(10);
-    voidFiller(ctx, plan, miniBottom, panelTop + panelH - ctx.sp(10));
+    voidFiller(ctx, plan, miniBottom, panelTop + panelH - ctx.sp(24), {
+      x: m + ctx.sp(24),
+      width: ctx.width - (m + ctx.sp(24)) * 2,
+    });
     plan.focal = { x: ctx.width / 2, y: miniTop };
 
     let after = panelTop + panelH + m * 0.35;
