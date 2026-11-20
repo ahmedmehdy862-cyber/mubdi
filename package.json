@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p knowledge/tsconfig.json",
     "lint": "eslint .",
     "test": "pnpm -r test",
     "test:unit": "vitest run",
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
     "@vitest/coverage-v8": "^5.1.0",
     "eslint": "^10.15.0",
     "husky": "^9.1.7",

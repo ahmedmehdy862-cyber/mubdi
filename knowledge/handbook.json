@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "readable-contrast",
+      "domain": "color",
+      "whyAr": "النص غير المقروء لا يُقيَّم جماله أصلاً؛ التباين شرط أولي للتصميم لا تحسين لاحق، ولهذا يُعدَّل لون النص تلقائياً حتى يصل الحد ولا يُقبل التصميم بلون غير مقروء.",
+      "observableAr": "لا توجد طبقة نصية تحت حد التباين المطلوب لحجمها في قياس contrast.text.",
+      "measure": "contrast.text==0",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "palette-harmony",
+      "domain": "color",
+      "whyAr": "الألوان المتنافرة تُشعر القارئ بالفوضى قبل أن يقرأ كلمة؛ العلاقة الهندسية على عجلة اللون هي ما يجعل اللوحة تبدو مقصودة لا عشوائية.",
+      "observableAr": "تصنيف الألوان المشبعة يعيد نظاماً لونياً واضحاً بثقة ≥ 0.6 في color.harmony.",
+      "measure": "color.harmony.confidence>=0.6",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "palette-count",
+      "domain": "color",
+      "whyAr": "كل لون إضافي يُشتت الانتباه ويضعف هوية التصميم؛ الاحتراف يظهر في الالتزام بعدد محدود من العائلات اللونية، لا في تنوّع الدرجات.",
+      "observableAr": "العدد الكلي للألوان (عائلات صبغية + نظام محايد) ≤ 5 في color.count.",
+      "measure": "color.count<=5",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "accent-scarcity",
+      "domain": "color",
+      "whyAr": "اللون المميز يوجّه العين فقط ما دام نادراً؛ عند إسرافه يتحول إلى خلفية ثانية يتجاهلها القارئ تماماً ويضيع أثره في كل مرة.",
+      "observableAr": "مساحة الأشكال المشبعة ≤ 28% من الإطار في color.accentShare (والهدف الاحترافي تحت 20%).",
+      "measure": "color.accentShare<=0.28",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "hierarchy-jump",
+      "domain": "hierarchy",
+      "whyAr": "بدون فجوة حجمية يعرف القارئ من أين يبدأ؛ التسلسل يُقرأ قبل الكلمات، ويبدأ بقفزة مضاعفة على الأقل بين أكبر حجم وأصغر حجم.",
+      "observableAr": "نسبة أكبر حجم إلى أصغر حجم ≥ 2 في hierarchy.ratio وبلا أكثر من مستوى يتشابه في أكبر حجم.",
+      "measure": "hierarchy.ratio>=2",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "headline-owns-focus",
+      "domain": "hierarchy",
+      "whyAr": "العنوان الذي ليس الأكبر يُنافسه عنصر آخر على البؤرة، فيقرأ القارئ شيئين معاً ولا يُسجّل أيٌّ منهما؛ البؤرة الحاسمة تعني عنصراً واحداً في القمة.",
+      "observableAr": "العنوان الرئيسي أكبر عنصر نصي وحده: صفر نتائج hierarchy.headline وhierarchy.competition.",
+      "measure": "hierarchy.headline==0&&hierarchy.competition==0",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "spacing-snap",
+      "domain": "layout",
+      "whyAr": "الفراغات غير المتقابلة تجعل التصميم يبدو «تقريباً»؛ الشبكة الثمانية تُقنع القارئ بالاحترافية قبل أن يقرأ كلمة واحدة.",
+      "observableAr": "≥ 80% من الفراغات الصغيرة تقع على المقياس ±3 في spacing.scale.",
+      "measure": "spacing.scale>=0.8",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "alignment-edges",
+      "domain": "layout",
+      "whyAr": "الحواف التي تكاد تلتقي دون أن تلتقي تبدو خطأً لا قراراً؛ المحاذاة إما تبدأ أو تتوسط أو تنتهي — لا تقريب في المنتصف.",
+      "observableAr": "عدد حواف البداية المجمّعة ≤ 3 في alignment.edges.",
+      "measure": "alignment.edges<=3",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "ink-density",
+      "domain": "layout",
+      "whyAr": "كتلة نص ضخمة تبتلع الصورة وتحوّل الملصق إلى مستند؛ الكثافة تُقاس بالحبر الفعلي داخل السطر لا بصندوق النص المحيط به.",
+      "observableAr": "حبر النص (عرض السطر × الحجم × ارتفاع السطر) ≤ 40% من الإطار في density.ink.",
+      "measure": "density.ink<=0.4",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "proximity-groups",
+      "domain": "gestalt",
+      "whyAr": "العقل يجمع المتقارب تلقائياً قبل أن يقرأ؛ التباعد هو ما يفصل الأفكار عن بعضها، لا الخطوط الفاصلة بينها.",
+      "observableAr": "المجموعات المترابطة تتباعد داخلها أكثر مما تتباعد عنها في التخطيط.",
+      "measure": "pending:gestalt.proximity",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "balance-centroid",
+      "domain": "balance",
+      "whyAr": "الثقل البصري المزاح لجهة واحدة يجعل التصميم يبدو مائلاً دون أن يشعر القارئ بالسبب؛ الإحساس بالثقل يسبق فهمه، ولهذا يُقاس مركز الثقل لا انطباعه.",
+      "observableAr": "مركز الثقل المرجّح بالمساحة والتباين ضمن 18% من مركز الإطار في balance.centroid.",
+      "measure": "balance.centroid<=0.18",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "arabic-connected",
+      "domain": "rtl",
+      "whyAr": "التباعد يفصل الحروف المتصلة فيكسر تشكيل الكلمة؛ العربية تُكتب كلمة متاحة لا مقاطع، وأي tracking يحوّلها إلى حروف مبعثرة.",
+      "observableAr": "أي نص عربي له tracking = 0 بلا استثناء في typography.tracking.",
+      "measure": "typography.tracking==0",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "platform-font-floor",
+      "domain": "production",
+      "whyAr": "الخط الأصغر من أرضية المنصة يصبح غير مقروء على الهاتف؛ المقاس الجميل الذي لا يُقرأ ليس مقاساً أصلاً، والمنصة تفرض أرضيتها قبل ذوقنا.",
+      "observableAr": "لا حجم نصي تحت أرضية minFontSize الخاصة بالمنصة في typography.minSize.",
+      "measure": "typography.minSize>=floor",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "safe-zones-intact",
+      "domain": "production",
+      "whyAr": "المنصات تقصّ الأطر بمساحتها المحجوزة؛ أي زر أو نص مهم يلامس الحافة قد يُقتطع قبل أن يراه المستخدم، فيختفي العمل كله خلف واجهة المنصة.",
+      "observableAr": "صفر اختراقات لمنطقة الأمان في platform.safeZone.",
+      "measure": "platform.safeZone==0",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "margin-hold",
+      "domain": "production",
+      "whyAr": "الهامش هو التنفّس البصري للتصميم؛ العناصر اللامقة تُشعر القارئ بالضيق وتكسر الإيقاع حتى وهي داخل حدود الإطار.",
+      "observableAr": "صفر طبقات خارج هامش المنصة في platform.margins.",
+      "measure": "platform.margins==0",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "logo-present",
+      "domain": "brand",
+      "whyAr": "العلامة تُبنى بالتكرار؛ تصميم بلا شعار ينشر المحتوى وينسى هويته في كل مرة يُعاد فيها النشر، فيبقى المحتوى بلا صاحب.",
+      "observableAr": "كل تصميم يحمل طبقة LOGO: شعار مرفق أو مساحة مخصّصة في platform.logo.",
+      "measure": "platform.logo>=1",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "no-invented-logo",
+      "domain": "brand",
+      "whyAr": "الشعار رأس مال العلامة؛ اختراعه أو تعديله أو إعادة رسمه يُفقد الثقة، والعلامة تُبنى على المعطى لا على التخمين.",
+      "observableAr": "طبقة الشعار إما الشعار المرفوع حرفياً أو مساحة فارغة تحمل اسم العلامة دون اختلاق شكل.",
+      "measure": "tests.logoCarriesBrandName",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "concept-before-decoration",
+      "domain": "creative",
+      "whyAr": "الزخرفة ليست فكرة؛ تصميم بلا فكرة يُنسى بعد لحظتين لأنه لا يقول شيئاً، والفكرة تُكتب جملة واحدة قبل أن يُرسم أي خط.",
+      "observableAr": "كل نسخة تحمل مبرراً مفاهيمياً بجملة كاملة في rationaleAr.",
+      "measure": "rationaleAr.nonEmpty",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "structure-by-hard-edges",
+      "domain": "process",
+      "whyAr": "المقياس البصري يُقرؤه الحد لا الظل: الظلال الناعمة والتدرجات تذوب على شريحة البكسل بينما تسجّل الحواف الصلبة والألواح المسنّدة البنية الحقيقية.",
+      "observableAr": "التصميم يحمل حوافاً صلبة أو ألواحاً مسنّدة تسجّل فوق أرضية الحد المقيسة ≥ 0.065 في pixel.edge.",
+      "measure": "pixel.edge>=0.065",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "uniform-surface-pane",
+      "domain": "process",
+      "whyAr": "اللوح الشفاف فوق خلفية مقسومة يتلوّن بلونَي الخلفية تحته فيبدو عرضياً وغير مقصود؛ اللوح الموحد يُقرأ كقرار واحد مهما كان موضعه على القماش.",
+      "observableAr": "أي لوح مصمت يبقى بلون واحد متجانس ويفصل عن كل نصف خلفية بفارق ≥ 0.14 في surface.separation.",
+      "measure": "surface.separation>=0.14",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "container-band-integrity",
+      "domain": "process",
+      "whyAr": "اللوح الداخلي الذي يعبر حدود حاويته يقطع خطها فيبدو معطوباً لا مقصوداً؛ الحد المقطوع أسوأ من لوح غائب تماماً من العين.",
+      "observableAr": "الألواح الداخلية تبقى داخل حدود حاويتها بالكامل: صفر تعارض في collision.probe.",
+      "measure": "collision.probe.crossings==0",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    },
+    {
+      "id": "logo-clear-zone",
+      "domain": "process",
+      "whyAr": "صندوق الشعار خلف العنوان يقرأ كبقعة رمادية فوق الكلمة؛ مكان الشعار شريط علوي مستقل لا منطقة نصية يشترك فيها مع غيره.",
+      "observableAr": "صندوق الشعار لا يتقاطع مع أي كتلة نصية: صفر تعارض في collision.probe.logoText.",
+      "measure": "collision.probe.logoText==0",
+      "source": "handbook",
+      "addedAt": "2026-11-20"
+    }
+  ]
+}
