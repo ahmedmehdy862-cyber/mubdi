@@ -368,6 +368,12 @@ export interface TemplateRenderCtx {
   width: number;
   height: number;
   margin: number;
+  /** Effective bottom inset (margin ∪ platform safe zone). Bottom-anchored
+   *  controls are born inside it, so the later text clamp never drags a
+   *  control away from the pane drawn to end at its design position.
+   *  Optional: an omitted inset falls back to `margin` (the pre-safe-zone
+   *  behaviour) instead of poisoning arithmetic with NaN. */
+  bottomInset?: number;
   rtl: boolean;
   palette: Palette;
   hex: {
@@ -800,11 +806,16 @@ function ctaPill(
   const size = ctx.type.cta;
   const w = Math.round(width ?? Math.min(ctx.width * 0.6, measureTextWidth(s, size) + size * 3));
   const h = Math.round(size * 2.5);
+  /* platform safe bottom: pill AND label are born inside it — a control
+     placed outside would later be dragged up by the text clamp, tearing it
+     away from the pane whose bottom edge is drawn at ITS design position. */
+  const inset = ctx.bottomInset ?? ctx.margin;
+  const yTop = Math.min(Math.round(y), ctx.height - inset - h);
   plan.shapes.push(
     rectShape(
       'cta-bg',
       'rect',
-      { x: Math.round(centreX - w / 2), y: Math.round(y), width: w, height: h },
+      { x: Math.round(centreX - w / 2), y: yTop, width: w, height: h },
       ctx.hex.primary,
       1,
       {
@@ -824,7 +835,7 @@ function ctaPill(
       [s],
       {
         x: Math.round(centreX - w / 2),
-        y: Math.round(y + h * 0.24),
+        y: Math.round(yTop + h * 0.24),
         width: w,
         height: Math.round(h * 0.6),
       },
@@ -835,20 +846,22 @@ function ctaPill(
       1.3,
     ),
   );
-  return y + h;
+  return yTop + h;
 }
 
 function ctaBand(ctx: TemplateRenderCtx, plan: TemplatePlan, y: number): number {
   const s = ctx.copy.cta;
   if (!s) return y;
   const h = Math.round(ctx.type.cta * 2.7);
+  /* same safe-bottom birth rule as the pill (see ctaPill) */
+  const yTop = Math.min(Math.round(y), ctx.height - (ctx.bottomInset ?? ctx.margin) - h);
   plan.shapes.push(
     rectShape(
       'cta-bg',
       'ribbon',
       {
         x: Math.round(ctx.margin),
-        y: Math.round(y),
+        y: yTop,
         width: Math.round(ctx.width - ctx.margin * 2),
         height: h,
       },
@@ -864,7 +877,7 @@ function ctaBand(ctx: TemplateRenderCtx, plan: TemplatePlan, y: number): number 
       [s],
       {
         x: Math.round(ctx.margin),
-        y: Math.round(y + h * 0.22),
+        y: Math.round(yTop + h * 0.22),
         width: Math.round(ctx.width - ctx.margin * 2),
         height: Math.round(h * 0.6),
       },
@@ -875,7 +888,7 @@ function ctaBand(ctx: TemplateRenderCtx, plan: TemplatePlan, y: number): number 
       1.3,
     ),
   );
-  return y + h;
+  return yTop + h;
 }
 
 /* headline with accent-coloured last word (references device #1) */
@@ -1323,7 +1336,10 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
       });
     }
 
-    ctaPill(ctx, plan, ctx.width / 2, detailsBottom + ctx.type.cta * 0.35, cardW * 0.62);
+    /* the pane ends at detailsBottom + cta*0.4 — the pill starts BELOW that
+       edge (0.45), so it never straddles the border it is meant to sit
+       under (crossings gate: a panel may not cross its container). */
+    ctaPill(ctx, plan, ctx.width / 2, detailsBottom + ctx.type.cta * 0.45, cardW * 0.62);
 
     if (tpl.decor.sparkle > 0) {
       const d = cardW * 0.28;
@@ -2086,7 +2102,15 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
        (never over it) so the card's border stays whole. */
     const footY = ctx.height - m * 1.3;
     const ctaH = ctx.type.cta * 2.5;
-    const ctaY = Math.min(ctx.height - m * 2.05 - ctaH, footY - ctaH - ctx.sp(16));
+    /* ONE value feeds both the pane and the pill, bounded by the platform
+       safe bottom: the pane ends where the button begins, and the button is
+       legal from birth — so the later text clamp never moves it and the
+       pane's bottom edge never tears away from the pill it frames. */
+    const ctaY = Math.min(
+      ctx.height - m * 2.05 - ctaH,
+      footY - ctaH - ctx.sp(16),
+      ctx.height - (ctx.bottomInset ?? ctx.margin) - ctaH,
+    );
     voidFiller(ctx, plan, Math.max(afterRows + ctx.type.body * 0.3, cardBottom + ctx.sp(8)), ctaY);
     ctaPill(ctx, plan, ctx.width / 2, ctaY);
     if (tpl.decor.sparkle > 0) {
@@ -2401,10 +2425,17 @@ const RENDERERS: Record<PatternId, PatternRenderer> = {
     }
 
     /* CTA is bottom-anchored; any quiet zone above it gets a tinted band
-       with a low-alpha dot veil instead of reading as dead background. */
-    const ctaY = ctx.height - m * 2.05 - ctx.type.cta * 2.6;
+       with a low-alpha dot veil instead of reading as dead background.
+       Pane and control share ONE y, bounded by the platform safe bottom
+       (see P5's ctaY note). */
+    const bandOn = tpl.cta === 'band';
+    const ctaH = ctx.type.cta * (bandOn ? 2.7 : 2.5);
+    const ctaY = Math.min(
+      ctx.height - m * 2.05 - ctx.type.cta * 2.6,
+      ctx.height - (ctx.bottomInset ?? ctx.margin) - ctaH,
+    );
     voidFiller(ctx, plan, cursor, ctaY);
-    if (tpl.cta === 'band') ctaBand(ctx, plan, ctaY);
+    if (bandOn) ctaBand(ctx, plan, ctaY);
     else ctaPill(ctx, plan, ctx.width / 2, ctaY);
 
     if (tpl.decor.sparkle > 0) {

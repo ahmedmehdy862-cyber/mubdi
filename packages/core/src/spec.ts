@@ -5,8 +5,10 @@ import {
   buildPalette,
   ensureContrast,
   ensureContentSlots,
+  explainDesign,
   extractBigNumber,
   fontPairingFor,
+  generateConcepts,
   getDirection,
   hexToRgb,
   makeTypeScale,
@@ -48,6 +50,8 @@ export interface GeneratedVariant {
   paletteSummaryAr: string;
   conceptId: string;
   conceptTitleAr: string;
+  /** The concept's one-sentence idea — what variant is actually ABOUT. */
+  conceptIdeaAr: string;
   variant: number;
 }
 
@@ -310,56 +314,110 @@ function clampTextLayers(
     };
   };
 
+  /* A text layer's id IS the block's identity: the accent last-line redraw
+     (constAccentLastLine) and split-line headlines deliberately share the
+     headline id, so every layer carrying one id is ONE visual block — the
+     seating below must never pull such a family apart. */
   const texts = layers.filter((l) => l.type === 'text');
-  const items = texts.map((t) => {
+  const families = new Map<string, Layer[]>();
+  const famOrder: string[] = [];
+  for (const t of texts) {
+    const arr = families.get(t.id);
+    if (arr) arr.push(t);
+    else {
+      families.set(t.id, [t]);
+      famOrder.push(t.id);
+    }
+  }
+
+  interface Item {
+    members: Layer[];
+    /** pill/bar travelling with a CTA/FOOTER block */
+    s?: Layer;
+    origTop: number;
+    origBottom: number;
+    r: { x: number; y: number; w: number; h: number };
+  }
+
+  const partnerOf = (members: Layer[]): Layer | undefined => {
     /* a CTA travels with its pill, a footer with its bar — but only when the
        shape really is behind THAT block: several blocks share the FOOTER
        role (hashtag chips) and none of them may be dragged by the bar. */
-    const cand =
-      t.name === 'CTA'
-        ? layers.find((l) => l.id === 'cta-bg')
-        : t.name === 'FOOTER'
-          ? layers.find((l) => l.id === 'footer-bar')
-          : undefined;
-    const s = cand && hits(rectOf(t), rectOf(cand)) ? cand : undefined;
+    for (const t of members) {
+      const cand =
+        t.name === 'CTA'
+          ? layers.find((l) => l.id === 'cta-bg')
+          : t.name === 'FOOTER'
+            ? layers.find((l) => l.id === 'footer-bar')
+            : undefined;
+      if (cand && hits(rectOf(t), rectOf(cand))) return cand;
+    }
+    return undefined;
+  };
+
+  const unionAll = (members: Layer[], s?: Layer) => {
+    let r = union(rectOf(members[0]!));
+    for (const m of members.slice(1)) r = union(r, rectOf(m));
+    return s ? union(r, rectOf(s)) : r;
+  };
+
+  const items: Item[] = famOrder.map((id) => {
+    const members = families.get(id)!;
+    const s = partnerOf(members);
+    let origTop = members[0]!.y;
+    let origBottom = members[0]!.y + members[0]!.height;
+    for (const m of members.slice(1)) {
+      origTop = Math.min(origTop, m.y);
+      origBottom = Math.max(origBottom, m.y + m.height);
+    }
     return {
-      t,
-      s,
-      origBottom: t.y + t.height,
-      clamped: false,
-      r: union(rectOf(t), s ? rectOf(s) : undefined),
+      members,
+      ...(s ? { s } : {}),
+      origTop,
+      origBottom,
+      r: unionAll(members, s),
     };
   });
 
+  const move = (it: Item, dy: number): void => {
+    for (const m of it.members) m.y = Math.round(m.y + dy);
+    if (it.s) it.s.y = Math.round(it.s.y + dy);
+    it.r = unionAll(it.members, it.s);
+  };
+
+  /* ---- 1) bring each block into the safe rect as ONE unit — the family's
+     internal geometry (accent glued to its line, stacked headline lines)
+     never changes, only the block's position. ---- */
   for (const it of items) {
-    const { t } = it;
-    const origX = t.x;
-    if (t.width > safe.width) t.width = safe.width;
-    t.x = Math.round(Math.min(Math.max(safe.x, t.x), safe.x + safe.width - t.width));
-    const clampedY = Math.round(Math.min(Math.max(safe.y, t.y), safeBottom - t.height));
-    if (t.x !== origX && it.s) {
-      const dx = t.x - origX;
-      it.s.x = Math.round(it.s.x + dx);
-      /* the pill is sized to its label: narrowing the label narrows the pill */
-      if (it.s.id === 'cta-bg') it.s.width = t.width;
+    for (const t of it.members) {
+      const origX = t.x;
+      if (t.width > safe.width) t.width = safe.width;
+      t.x = Math.round(Math.min(Math.max(safe.x, t.x), safe.x + safe.width - t.width));
+      if (t.x !== origX && it.s && (t.name === 'CTA' || t.name === 'FOOTER')) {
+        const dx = t.x - origX;
+        it.s.x = Math.round(it.s.x + dx);
+        /* the pill is sized to its label: narrowing the label narrows the pill */
+        if (it.s.id === 'cta-bg') it.s.width = t.width;
+      }
     }
-    if (clampedY !== t.y) {
-      /* dragged into the safe area → its pill/bar follows, padding intact */
-      const d = clampedY - t.y;
-      t.y = clampedY;
-      if (it.s) it.s.y = Math.round(it.s.y + d);
-      it.clamped = true;
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const m of it.members) {
+      top = Math.min(top, m.y);
+      bottom = Math.max(bottom, m.y + m.height);
     }
-    it.r = union(rectOf(t), it.s ? rectOf(it.s) : undefined);
+    let delta = 0;
+    if (top < safe.y) delta = safe.y - top;
+    if (bottom + delta > safeBottom) delta = safeBottom - bottom;
+    if (delta !== 0) move(it, delta);
   }
 
-  /* Seat the whole column bottom-up: whoever sat lowest keeps its place, and
-     any block that lands on top of an already-seated one yields upward with
-     real air between them. Blocks that never collide (side-by-side hashtag
-     chips, an untouched body stack) are never touched — but a ceiling-clamped
-     footer can no longer print on top of the CTA, in either order. */
+  /* ---- 2) seat the column bottom-up: whoever sat lowest keeps its place,
+     and any block that lands on an already-seated one yields upward with
+     real air between them. Blocks that never collide (side-by-side chips,
+     an untouched body stack) are never touched. ---- */
   const order = [...items].sort((a, b) => b.origBottom - a.origBottom);
-  const seated: typeof items = [];
+  const seated: Item[] = [];
   for (const m of order) {
     for (let guard = 0; guard < 40; guard++) {
       const other = seated.find((o) => hits(m.r, o.r));
@@ -367,18 +425,42 @@ function clampTextLayers(
       const overlap = m.r.y + m.r.h - other.r.y;
       if (overlap <= 0) break;
       const dy = overlap + GAP;
-      m.t.y = Math.round(m.t.y - dy);
-      if (m.s) m.s.y = Math.round(m.s.y - dy);
-      m.r = union(rectOf(m.t), m.s ? rectOf(m.s) : undefined);
+      move(m, -dy);
       if (m.r.y < safe.y) {
-        const back = safe.y - m.r.y;
-        m.t.y += back;
-        if (m.s) m.s.y = Math.round(m.s.y + back);
-        m.r = union(rectOf(m.t), m.s ? rectOf(m.s) : undefined);
+        move(m, safe.y - m.r.y);
         break;
       }
     }
     seated.push(m);
+  }
+
+  /* ---- 3) ceiling yield: a block dragged onto the ceiling can't move up
+     any further, so the block it was DESIGNED to sit above gives way
+     downward instead, cascading down the column while anything still fits.
+     Only downward moves run in the main branch, so the pass terminates;
+     when neither side has room the overlap stays and the gate reports it. ---- */
+  for (let pass = 0; pass < 24; pass++) {
+    let changed = false;
+    for (let i = 0; i < items.length && !changed; i++) {
+      for (let j = i + 1; j < items.length && !changed; j++) {
+        const a = items[i]!;
+        const b = items[j]!;
+        if (!hits(a.r, b.r)) continue;
+        const above = a.origTop <= b.origTop ? a : b;
+        const below = above === a ? b : a;
+        const overlap = above.r.y + above.r.h - below.r.y;
+        if (overlap <= 0) continue;
+        const dy = overlap + GAP;
+        if (below.r.y + below.r.h + dy <= safeBottom) {
+          move(below, dy);
+          changed = true;
+        } else if (above.r.y - dy >= safe.y) {
+          move(above, -dy);
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
   }
 }
 
@@ -457,6 +539,11 @@ export function generateVariantDetails(
   const choice =
     choices[((variant % choices.length) + choices.length) % choices.length] ?? choices[0]!;
   const direction = choice.direction;
+  // P0-2 — a concept is NOT a direction: each variant gets its own concept
+  // route (idea/device/risk) ranked for this brief, so conceptId never
+  // mirrors directionId and the rationale carries a real creative idea.
+  const concepts = generateConcepts(brief, 3);
+  const concept = concepts[variant % concepts.length] ?? concepts[0]!;
   const palette = buildPaletteFor(brief, direction, brand);
   const type = typeFor(preset, direction);
 
@@ -495,6 +582,7 @@ export function generateVariantDetails(
     width: preset.width,
     height: preset.height,
     margin: preset.margins,
+    bottomInset: Math.max(preset.margins, preset.safeZones.bottom),
     rtl,
     palette,
     hex: {
@@ -524,6 +612,9 @@ export function generateVariantDetails(
     readingFlow: 'rtl-z' as const,
     focal: templatePlan.focal,
   };
+  // P0-2 — the "why" is explained, not asserted: direction, concept,
+  // palette, typography, layout and focal point in one readable block.
+  const explanation = explainDesign({ direction, plan, palette, type, variant });
   const fontsFinal = fontsTpl;
 
   // Q2 contract as a backstop for templates too: no renderer may silently
@@ -666,10 +757,11 @@ export function generateVariantDetails(
     directionWhyAr: choice.whyAr,
     archetype: plan.archetype,
     archetypeNameAr: plan.nameAr,
-    rationaleAr: plan.rationaleAr,
+    rationaleAr: `${explanation.text}\nالمفهوم (${concept.deviceAr}): ${concept.titleAr} — ${concept.ideaAr}`,
     paletteSummaryAr: `لوحة ${palette.mode === 'dark' ? 'داكنة' : 'فاتحة'} — ${palette.scheme} على ${colorToHex(hexToColor(palette.primary))}`,
-    conceptId: direction.id,
-    conceptTitleAr: direction.nameAr,
+    conceptId: concept.id,
+    conceptTitleAr: concept.titleAr,
+    conceptIdeaAr: concept.ideaAr,
     variant,
   };
 }

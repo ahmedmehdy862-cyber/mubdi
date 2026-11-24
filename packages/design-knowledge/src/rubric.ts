@@ -60,6 +60,8 @@ export interface DesignMetrics {
   alignmentEdges: number;
   balanceOffset: number;
   density: number;
+  /** Total ink (text + shapes) / canvas — the `density.ink` handbook measure. */
+  ink: number;
   colorCount: number;
   fontCount: number;
   safeZoneViolations: number;
@@ -720,6 +722,7 @@ export function evaluateDesign(
       alignmentEdges: edges.size,
       balanceOffset,
       density,
+      ink: inkRatio,
       colorCount,
       fontCount: fonts.size,
       safeZoneViolations: safeViolations,

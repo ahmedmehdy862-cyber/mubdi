@@ -59,7 +59,8 @@ function fromHex(hex: string): Color {
 }
 
 function textLayers(spec: DesignSpec): Layer[] {
-  return spec.layers.filter((l) => l.type === 'text' && Boolean(l.textRuns?.[0]));
+  // P0-4: locked layers are never auto-fixed — the user froze them on purpose.
+  return spec.layers.filter((l) => l.type === 'text' && Boolean(l.textRuns?.[0]) && !l.locked);
 }
 
 function marginsOf(spec: DesignSpec, preset: RubricPreset): number {
@@ -75,7 +76,7 @@ function shiftedPartner(spec: DesignSpec, layer: Layer, dy: number): void {
   const partnerId = layer.name === 'CTA' ? 'cta-bg' : layer.id === 'cta' ? 'cta-bg' : undefined;
   if (!partnerId) return;
   const partner = spec.layers.find((l) => l.id === partnerId);
-  if (partner) partner.y += dy;
+  if (partner && !partner.locked) partner.y += dy;
 }
 
 /**
@@ -205,7 +206,7 @@ function fixAlignment(
         const shape = spec.layers.find(
           (l) => l.name === 'CTA-bg' && Math.abs(l.y - layer.y) < layer.height,
         );
-        if (shape) shape.x = x;
+        if (shape && !shape.locked) shape.x = x;
         actions.push(`محاذاة «${layer.name}» على هامش المحتوى`);
       }
     }
@@ -231,7 +232,7 @@ function fixSafeZones(spec: DesignSpec, preset: RubricPreset, actions: string[])
       layer.y = Math.round(layer.y + dy);
       shiftedPartner(spec, layer, dy);
       const shape = spec.layers.find((l) => l.id === 'cta-bg');
-      if (shape && layer.name === 'CTA') {
+      if (shape && !shape.locked && layer.name === 'CTA') {
         shape.x = layer.x;
         shape.y = layer.y;
       }

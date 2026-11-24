@@ -12,3 +12,4 @@ export * from './knowledge.js';
 export * from './design-language.js';
 export * from './quality.js';
 export * from './templates.js';
+export * from './rules.js';

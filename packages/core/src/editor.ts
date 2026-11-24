@@ -27,25 +27,33 @@ export function parseEditCommand(cmd: string): SpecDiff[] {
 
 export function applyDiff(spec: DesignSpec, diff: SpecDiff): DesignSpec {
   const out = JSON.parse(JSON.stringify(spec)) as DesignSpec;
+  let changed = false;
   for (const layer of out.layers) {
+    // P0-4: a locked layer is immutable — editing it is a true no-op
+    // (including the canvas.background side-effect of a background recolor).
+    if (layer.locked) continue;
     if (diff.op === 'recolor' && diff.target === 'background' && layer.type === 'background') {
       layer.fill = diff.value;
       out.canvas.background = diff.value;
+      changed = true;
     }
     if (layer.name === diff.target) {
       if (diff.op === 'scale' && layer.type === 'text' && layer.textRuns?.[0]) {
         layer.textRuns[0].size = Math.round(layer.textRuns[0].size * diff.value);
         layer.height = Math.round(layer.height * diff.value);
+        changed = true;
       }
       if (diff.op === 'recolor' && layer.type === 'text' && layer.textRuns?.[0]) {
         layer.textRuns[0].color = diff.value;
+        changed = true;
       }
       if (diff.op === 'recolor' && layer.fill) {
         layer.fill = diff.value;
+        changed = true;
       }
     }
   }
-  out.version = (out.version || 1) + 1;
+  if (changed) out.version = (out.version || 1) + 1;
   return out;
 }
 
